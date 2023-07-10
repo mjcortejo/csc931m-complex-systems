@@ -12,12 +12,14 @@ G = nx.Graph()
 intersection_nodes = {
     1: (100, 100),
     2: (100, 200),
-    3: (200, 200)
+    3: (200, 200),
+    4: (0, 200)
 }
 
 edges = [
     (1, 2),
-    (2, 3)
+    (2, 3),
+    (2, 4)
 ]
 
 for index, pos in intersection_nodes.items():
