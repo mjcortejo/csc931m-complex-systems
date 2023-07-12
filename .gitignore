@@ -18,5 +18,5 @@ pip-selfcheck.json
 ### VirtualEnv ###
 # Virtualenv
 # http://iamzed.com/2009/05/07/a-primer-on-virtualenv/
-
+share/
 # End of https://www.toptal.com/developers/gitignore/api/venv,virtualenv*

@@ -131,8 +131,8 @@ class Car:
 
     def compute_shortest_path(self):
         paths = nx.shortest_path(G, self.origin_node, self.final_destination_node)
-        self.node_paths = paths[1:] #ommitting first index, since it is already the origin
-        self.next_destination_node = self.node_paths[0]
+        self.node_paths = iter(paths[1:]) #ommitting first index, since it is already the origin
+        self.next_destination_node = next(self.node_paths)
 
     def travel(self):
         #get the paths

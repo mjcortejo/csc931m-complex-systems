@@ -1,7 +1,6 @@
 import simpy
 import tkinter as tk
 import random
-import math
 
 class Car:
     def __init__(self, canvas, x, y):
@@ -10,33 +9,18 @@ class Car:
         self.y = y
         self.radius = 5
         self.destination = None
-        self.shape = None
 
     def draw(self):
         x0 = self.x - self.radius
         y0 = self.y - self.radius
         x1 = self.x + self.radius
         y1 = self.y + self.radius
-        self.shape = self.canvas.create_oval(x0, y0, x1, y1, fill="blue")
+        self.canvas.create_oval(x0, y0, x1, y1, fill="blue")
 
     def move_to_destination(self):
         if self.destination is None:
             self.destination = (random.randint(0, self.canvas.winfo_width()), 
                                 random.randint(0, self.canvas.winfo_height()))
-
-    def move(self):
-        if self.destination is not None:
-            dx = self.destination[0] - self.x
-            dy = self.destination[1] - self.y
-            distance = math.sqrt(dx**2 + dy**2)
-            if distance > 1:  # Only move if the distance is greater than 1
-                speed = 1  # Adjust the speed as needed
-                self.x += (dx / distance) * speed
-                self.y += (dy / distance) * speed
-                self.canvas.coords(self.shape, self.x - self.radius, self.y - self.radius,
-                                   self.x + self.radius, self.y + self.radius)
-            else:
-                print("Car reached its destination!")
 
 
 class RoadNetwork:
@@ -88,23 +72,5 @@ network.place_car(x=600, y=400)
 for car in network.cars:
     car.move_to_destination()
     network.draw_destination(car.destination[0], car.destination[1])
-
-def simulate_movement():
-    while True:
-        for car in network.cars:
-            car.move()
-        if all(car.destination is None for car in network.cars):
-            print("All cars reached their destination!")
-            break
-        yield env.timeout(0.1)  # Adjust the simulation time step as needed
-
-fps = 60
-duration = 10
-
-# env = simpy.rt.RealtimeEnvironment(factor=1/fps, strict=False)
-env.process(simulate_movement())
-# env.run(until=10)  # Adjust the simulation duration as needed
-env.run(until=duration * fps + 1)
-
 
 root.mainloop()
