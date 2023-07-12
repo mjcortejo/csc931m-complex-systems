@@ -95,6 +95,12 @@ class Car:
         self.index = index
         self.pos_x = None
         self.pos_y = None
+
+        self.origin_node = None
+        self.node_paths = None
+        self.next_destination_node = None
+        self.final_destination_node = None
+
         self.org_x = None
         self.org_y = None
         self.des_x = None
@@ -115,23 +121,48 @@ class Car:
         self.car = canvas.create_oval(x0, y0, x1, y1, fill="yellow")
             # return car
     
-    def move_to(self, x, y):
+    def _move_to(self, x, y):
         x0 = x - self.car_radius
         y0 = y - self.car_radius
         x1 = x + self.car_radius
         y1 = y + self.car_radius
         
-        # self.pos_x = x
-        # self.pos_y = y
         canvas.coords(self.car, x0, y0, x1, y1)
 
-    def set_origin(self, origin_x, origin_y):
-        self.org_x = origin_x
-        self.org_y = origin_y
+    def compute_shortest_path(self):
+        paths = nx.shortest_path(G, self.origin_node, self.final_destination_node)
+        self.node_paths = paths[1:] #ommitting first index, since it is already the origin
+        self.next_destination_node = self.node_paths[0]
 
-    def set_destination(self, destination_x, destination_y):
-        self.des_x = destination_x
-        self.des_y = destination_y        
+    def travel(self):
+        #get the paths
+        des_x, des_y = intersection_nodes[self.next_destination_node]
+
+        dx = des_x - self.pos_x #use euclidean distance to judge the movement of the car even in an angle
+        dy = des_y - self.pos_y
+        distance = math.sqrt(dx ** 2 + dy ** 2)
+        if distance > 0:
+            step = min(self.speed, distance)
+            self.pos_x += (dx / distance) * step
+            self.pos_y += (dy / distance) * step
+            self._move_to(self.pos_x, self.pos_y)
+
+        if self.pos_x == des_x and self.pos_y == des_y:
+            self.next_destination_node = next(self.node_paths)
+            
+        #how to know if car agent already went to its final destinacion?
+
+    def set_origin(self, origin):
+        """
+        origin (Integer): node index from intersection_nodes dictionary (e.g. 1)
+        """
+        self.origin_node = origin
+
+    def set_destination(self, destination):
+        """
+        destination (Integer): node index from intersection_nodes dictionary (e.g. 1)
+        """
+        self.final_destination_node = destination  
     
 
 """
@@ -142,8 +173,7 @@ cars = []
 for index in range(number_of_cars):
     car = Car(index)
     edge_choice = random.choice(edges)
-    # edge_choice = edges[0]
-    # for edge in edges():
+
     p1 = intersection_nodes[edge_choice[0]]
     p2 = intersection_nodes[edge_choice[1]]
 
@@ -151,9 +181,10 @@ for index in range(number_of_cars):
     midpoint_x = (p1[0] + p2[0]) / 2
     midpoint_y = (p1[1] + p2[1]) / 2
 
-    car.set_origin(p1[0], p1[1]) #p1 is x and y respectively
+    car.set_origin(1) #p1 is x and y respectively
     car.place_car(midpoint_x, midpoint_y)
-    car.set_destination(p2[0], p2[1]) #p2 is x and y respectivelyu
+    car.set_destination(3) #p2 is x and y respectively
+    car.compute_shortest_path()
 
     cars.append(car)
 
@@ -161,14 +192,8 @@ for index in range(number_of_cars):
 def task(env):
     while True:
         for each_car in cars:
-            dx = each_car.des_x - each_car.pos_x #use euclidean distance to judge the movement of the car even in an angle
-            dy = each_car.des_y - each_car.pos_y
-            distance = math.sqrt(dx ** 2 + dy ** 2)
-            if distance > 1:
-                step = min(each_car.speed, distance)
-                each_car.pos_x += (dx / distance) * step
-                each_car.pos_y += (dy / distance) * step
-                each_car.move_to(each_car.pos_x, each_car.pos_y)
+            # pass
+            each_car.travel()
                 
         yield env.timeout(2)
 
