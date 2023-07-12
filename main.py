@@ -6,6 +6,8 @@ import networkx as nx
 import threading
 import numpy as np
 
+random.seed(42)
+
 """
 Create network graph representation
 """
@@ -15,14 +17,14 @@ lane_offset = 10
 intersection_nodes = {
     1: (100, 100),
     2: (100, 200),
-    3: (200, 200),
+    3: (250, 250),
     4: (0, 200),
     5: (100, 300)
 }
 
 edges = [
     (1, 2),
-    # (2, 3),
+    (2, 3),
     # (2, 4),
     # (2, 5)
 ]
@@ -129,7 +131,7 @@ class Car:
 
     def set_destination(self, destination_x, destination_y):
         self.des_x = destination_x
-        self.des_y = destination_y
+        self.des_y = destination_y        
     
 
 """
@@ -140,9 +142,10 @@ cars = []
 for index in range(number_of_cars):
     car = Car(index)
     edge_choice = random.choice(edges)
+    # edge_choice = edges[0]
     # for edge in edges():
-    p1 = intersection_nodes[edge[0]]
-    p2 = intersection_nodes[edge[1]]
+    p1 = intersection_nodes[edge_choice[0]]
+    p2 = intersection_nodes[edge_choice[1]]
 
     #place at middle part of those edges for now
     midpoint_x = (p1[0] + p2[0]) / 2
@@ -151,14 +154,14 @@ for index in range(number_of_cars):
     car.set_origin(p1[0], p1[1]) #p1 is x and y respectively
     car.place_car(midpoint_x, midpoint_y)
     car.set_destination(p2[0], p2[1]) #p2 is x and y respectivelyu
-    # car = place_car(midpoint_x, midpoint_y)
+
     cars.append(car)
 
 
 def task(env):
     while True:
         for each_car in cars:
-            dx = each_car.des_x - each_car.pos_x
+            dx = each_car.des_x - each_car.pos_x #use euclidean distance to judge the movement of the car even in an angle
             dy = each_car.des_y - each_car.pos_y
             distance = math.sqrt(dx ** 2 + dy ** 2)
             if distance > 1:
@@ -166,10 +169,8 @@ def task(env):
                 each_car.pos_x += (dx / distance) * step
                 each_car.pos_y += (dy / distance) * step
                 each_car.move_to(each_car.pos_x, each_car.pos_y)
-
-        # canvas.move(car1, 0, 1)
-        # print(canvas.coords(car1))
-        yield env.timeout(1)
+                
+        yield env.timeout(2)
 
 
 fps = 60
