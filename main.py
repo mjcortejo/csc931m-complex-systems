@@ -18,13 +18,14 @@ intersection_nodes = {
     1: (100, 100),
     2: (100, 200),
     3: (250, 250),
-    4: (0, 200),
+    4: (400, 500),
     5: (100, 300)
 }
 
 edges = [
     (1, 2),
     (2, 3),
+    (3, 4)
     # (2, 4),
     # (2, 5)
 ]
@@ -46,6 +47,7 @@ canvas = tk.Canvas(root, width=800, height=600)
 canvas.pack()
 
 intersection_radius = 4
+lane_width = 3
 
 def draw_intersection(x, y):
     x0 = x - intersection_radius
@@ -61,7 +63,7 @@ def draw_line_from_edge(a, b):
     a_pos = intersection_nodes[a]
     b_pos = intersection_nodes[b]
 
-    canvas.create_line(*a_pos, *b_pos)
+    canvas.create_line(*a_pos, *b_pos, width=lane_width)
 
 def place_car(x, y, car_radius=3):
     """
@@ -101,11 +103,6 @@ class Car:
         self.next_destination_node = None
         self.final_destination_node = None
 
-        self.org_x = None
-        self.org_y = None
-        self.des_x = None
-        self.des_y = None
-        
         self.speed = 1
         self.car = None
         self.car_radius = 3
@@ -150,8 +147,6 @@ class Car:
         if self.pos_x == des_x and self.pos_y == des_y:
             self.next_destination_node = next(self.node_paths)
             
-        #how to know if car agent already went to its final destinacion?
-
     def set_origin(self, origin):
         """
         origin (Integer): node index from intersection_nodes dictionary (e.g. 1)
@@ -172,7 +167,8 @@ number_of_cars = 1
 cars = []
 for index in range(number_of_cars):
     car = Car(index)
-    edge_choice = random.choice(edges)
+    # edge_choice = random.choice(edges)
+    edge_choice = edges[0]
 
     p1 = intersection_nodes[edge_choice[0]]
     p2 = intersection_nodes[edge_choice[1]]
@@ -183,11 +179,10 @@ for index in range(number_of_cars):
 
     car.set_origin(1) #p1 is x and y respectively
     car.place_car(midpoint_x, midpoint_y)
-    car.set_destination(3) #p2 is x and y respectively
+    car.set_destination(4) #p2 is x and y respectively
     car.compute_shortest_path()
 
     cars.append(car)
-
 
 def task(env):
     while True:
