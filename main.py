@@ -14,21 +14,50 @@ Create network graph representation
 G = nx.Graph()
 lane_offset = 10
 
+# intersection_nodes = {
+#     1: (100, 100),
+#     2: (100, 200),
+#     3: (200, 200),
+#     4: (200, 100),
+#     5: (100, 300),
+#     6: (200, 300) 
+# }
+
+# edges = [
+#     (1, 2),
+#     (2, 3),
+#     (3, 4),
+#     (3, 6),
+#     (2, 5),
+# ]
+
 intersection_nodes = {
     1: (100, 100),
-    2: (100, 200),
-    3: (250, 250),
-    4: (400, 500),
-    5: (100, 300)
+    2: (200, 100),
+    3: (300, 100),
+    4: (100, 200),
+    5: (200, 200),
+    6: (300, 200),
+    7: (100, 300),
+    8: (200, 300),
+    9: (300, 300)
 }
 
 edges = [
     (1, 2),
+    (1, 4),
     (2, 3),
-    (3, 4)
-    # (2, 4),
-    # (2, 5)
+    (2, 5),
+    (3, 6),
+    (4, 5),
+    (4, 7),
+    (5, 6),
+    (5, 8),
+    (6, 9),
+    (7, 8),
+    (8, 9)
 ]
+
 
 for index, pos in intersection_nodes.items():
     G.add_node(index, pos=pos)
@@ -49,12 +78,14 @@ canvas.pack()
 intersection_radius = 4
 lane_width = 3
 
-def draw_intersection(x, y):
+def draw_intersection(x, y, index=None, offset=5):
     x0 = x - intersection_radius
     y0 = y - intersection_radius
     x1 = x + intersection_radius
     y1 = y + intersection_radius
+
     canvas.create_oval(x0, y0, x1, y1, fill="blue")
+    canvas.create_text(x + offset, y + offset, text=index)
 
 def draw_line_from_edge(a, b):
     """
@@ -80,7 +111,7 @@ def place_car(x, y, car_radius=3):
 Draw the nodes as intersection junctions
 """
 for index, pos in intersection_nodes.items():
-    draw_intersection(*pos)
+    draw_intersection(*pos, index=index)
 
 """
 Draw a line using the edge information
@@ -106,6 +137,7 @@ class Car:
         self.speed = 1
         self.car = None
         self.car_radius = 3
+        self.arrived = False
     
     def place_car(self, x, y):
         x0 = x - self.car_radius
@@ -126,8 +158,10 @@ class Car:
         
         canvas.coords(self.car, x0, y0, x1, y1)
 
-    def compute_shortest_path(self):
+    def compute_shortest_path(self, next_destination_node = None):
         paths = nx.shortest_path(G, self.origin_node, self.final_destination_node)
+        if next_destination_node:
+            paths.insert(0, next_destination_node)
         self.node_paths = iter(paths[1:]) #ommitting first index, since it is already the origin
         self.next_destination_node = next(self.node_paths)
 
@@ -145,7 +179,12 @@ class Car:
             self._move_to(self.pos_x, self.pos_y)
 
         if self.pos_x == des_x and self.pos_y == des_y:
-            self.next_destination_node = next(self.node_paths)
+            try:
+                self.next_destination_node = next(self.node_paths)
+            except StopIteration:
+                print(self.next_destination_node)
+                self.arrived = True
+                print(f"Car {self.index} has arrived to destination")
             
     def set_origin(self, origin):
         """
@@ -158,37 +197,55 @@ class Car:
         destination (Integer): node index from intersection_nodes dictionary (e.g. 1)
         """
         self.final_destination_node = destination  
+
+    def remove_car(self):
+        canvas.delete(self.car)
     
 
 """
 Draw cars in the grid, and assign their origin and destination
 """
-number_of_cars = 1
+number_of_cars = 2
 cars = []
 for index in range(number_of_cars):
     car = Car(index)
-    # edge_choice = random.choice(edges)
-    edge_choice = edges[0]
+    edge_choice = list(random.choice(edges))
 
-    p1 = intersection_nodes[edge_choice[0]]
-    p2 = intersection_nodes[edge_choice[1]]
+    # print(edge_choice)
+    origin_choice = random.choice(edge_choice)
+
+    edge_choice.remove(origin_choice)
+    next_immediate_destination = edge_choice[0] # the remaining of the edges list
+
+    # print("origin_choice", origin_choice)
+    origin = origin_choice
+    destination = 9
+    # edge_choice = edges[0]
+
+    p1 = intersection_nodes[origin_choice]
+    p2 = intersection_nodes[next_immediate_destination]
 
     #place at middle part of those edges for now
     midpoint_x = (p1[0] + p2[0]) / 2
     midpoint_y = (p1[1] + p2[1]) / 2
 
-    car.set_origin(1) #p1 is x and y respectively
+    car.set_origin(edge_choice[0]) #p1 is x and y respectively
     car.place_car(midpoint_x, midpoint_y)
-    car.set_destination(4) #p2 is x and y respectively
-    car.compute_shortest_path()
+    car.set_destination(destination) #p2 is x and y respectively
+    car.compute_shortest_path(next_destination_node=next_immediate_destination)
+
+    print(f"Car {index} origin {edge_choice[0]}, destination: {destination}")
 
     cars.append(car)
 
 def task(env):
     while True:
-        for each_car in cars:
-            # pass
+        for index, each_car in enumerate(cars):
             each_car.travel()
+            
+            if each_car.arrived:
+                each_car.remove_car()
+                cars.pop(index)
                 
         yield env.timeout(2)
 
