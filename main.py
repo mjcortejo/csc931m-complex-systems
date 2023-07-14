@@ -11,25 +11,8 @@ random.seed(42)
 """
 Create network graph representation
 """
-G = nx.Graph()
+G = nx.DiGraph()
 lane_offset = 10
-
-# intersection_nodes = {
-#     1: (100, 100),
-#     2: (100, 200),
-#     3: (200, 200),
-#     4: (200, 100),
-#     5: (100, 300),
-#     6: (200, 300) 
-# }
-
-# edges = [
-#     (1, 2),
-#     (2, 3),
-#     (3, 4),
-#     (3, 6),
-#     (2, 5),
-# ]
 
 intersection_nodes = {
     1: (100, 100),
@@ -43,26 +26,48 @@ intersection_nodes = {
     9: (300, 300)
 }
 
-edges = [
-    (1, 2),
-    (1, 4),
-    (2, 3),
-    (2, 5),
-    (3, 6),
-    (4, 5),
-    (4, 7),
-    (5, 6),
-    (5, 8),
-    (6, 9),
-    (7, 8),
-    (8, 9)
-]
+intersection_states = {
+    i : {"color": "green"} for i in intersection_nodes.keys()
+}
 
+# edges = [
+#     (1, 2),
+#     (1, 4),
+#     (2, 3),
+#     (2, 5),
+#     (3, 6),
+#     (4, 5),
+#     (4, 7),
+#     (5, 6),
+#     (5, 8),
+#     (6, 9),
+#     (7, 8),
+#     (8, 9)
+# ]
+
+edges = {
+    (1, 2): {'has_accident': False, 'road_speed': 50, 'one_way': False},
+    (1, 4): {'has_accident': False, 'road_speed': 50, 'one_way': False},
+    (2, 3): {'has_accident': False, 'road_speed': 50, 'one_way': False},
+    (2, 5): {'has_accident': False, 'road_speed': 50, 'one_way': False},
+    (3, 6): {'has_accident': False, 'road_speed': 50, 'one_way': False},
+    (4, 5): {'has_accident': False, 'road_speed': 50, 'one_way': False},
+    (4, 7): {'has_accident': False, 'road_speed': 50, 'one_way': False},
+    (5, 6): {'has_accident': False, 'road_speed': 50, 'one_way': False},
+    (5, 8): {'has_accident': False, 'road_speed': 50, 'one_way': False},
+    (6, 9): {'has_accident': False, 'road_speed': 50, 'one_way': False},
+    (7, 8): {'has_accident': False, 'road_speed': 50, 'one_way': False},
+    (8, 9): {'has_accident': False, 'road_speed': 50, 'one_way': False}
+}
 
 for index, pos in intersection_nodes.items():
     G.add_node(index, pos=pos)
 
-G.add_edges_from(edges)
+for edge in edges.keys():
+    G.add_edge(edge[0], edge[1])
+    G.add_edge(edge[1], edge[0])
+
+# G.add_edges_from(edges.keys())
 
 print(G)
 
@@ -76,13 +81,14 @@ canvas = tk.Canvas(root, width=800, height=600)
 canvas.pack()
 
 intersection_radius = 4
-lane_width = 3
 
-def draw_intersection(x, y, index=None, offset=5):
+def draw_intersection(x, y, index=None, offset=5, ):
     x0 = x - intersection_radius
     y0 = y - intersection_radius
     x1 = x + intersection_radius
     y1 = y + intersection_radius
+
+    color = intersection_states[index]
 
     canvas.create_oval(x0, y0, x1, y1, fill="blue")
     canvas.create_text(x + offset, y + offset, text=index)
@@ -94,7 +100,26 @@ def draw_line_from_edge(a, b):
     a_pos = intersection_nodes[a]
     b_pos = intersection_nodes[b]
 
-    canvas.create_line(*a_pos, *b_pos, width=lane_width)
+    lane_width = 3
+    num_lanes = 2
+    # total_width = num_lanes * lane_width
+    # lane_offset = total_width / 2 + 3
+    # lane_offset = 3
+
+    # Render each lane
+    for i in range(num_lanes):
+        # Calculate the start and end positions of the lane
+        # start_x, start_y = a_pos[0] + i * lane_width - lane_offset, a_pos[1]
+        # end_x, end_y = b_pos[0] + i * lane_width - lane_offset, b_pos[1]
+        
+        start_x, start_y = a_pos[0], a_pos[1]
+        end_x, end_y = b_pos[0], b_pos[1]
+
+        # Render the lane
+        canvas.create_line(start_x, start_y, end_x, end_y, width=lane_width)
+
+
+    # canvas.create_line(*a_pos, *b_pos, width=lane_width)
 
 def place_car(x, y, car_radius=3):
     """
@@ -160,6 +185,8 @@ class Car:
 
     def compute_shortest_path(self, next_destination_node = None):
         paths = nx.shortest_path(G, self.origin_node, self.final_destination_node)
+        # print("paths", paths)
+        # print("next_dest",)
         if next_destination_node:
             paths.insert(0, next_destination_node)
         self.node_paths = iter(paths[1:]) #ommitting first index, since it is already the origin
@@ -172,7 +199,7 @@ class Car:
         dx = des_x - self.pos_x #use euclidean distance to judge the movement of the car even in an angle
         dy = des_y - self.pos_y
         distance = math.sqrt(dx ** 2 + dy ** 2)
-        if distance > 0:
+        if distance > 5:
             step = min(self.speed, distance)
             self.pos_x += (dx / distance) * step
             self.pos_y += (dy / distance) * step
@@ -205,14 +232,21 @@ class Car:
 """
 Draw cars in the grid, and assign their origin and destination
 """
-number_of_cars = 2
+number_of_cars = 1
 cars = []
 for index in range(number_of_cars):
     car = Car(index)
-    edge_choice = list(random.choice(edges))
+    # edge_choice = list(random.choice(list(edges.keys())))
+    # origin_choice = random.choice(edge_choice)
 
-    # print(edge_choice)
-    origin_choice = random.choice(edge_choice)
+    """
+    TEST 
+    """
+    edge_choice = list(list(edges.keys())[0])
+    origin_choice = edge_choice[1]
+    """
+    END TEST
+    """
 
     edge_choice.remove(origin_choice)
     next_immediate_destination = edge_choice[0] # the remaining of the edges list
