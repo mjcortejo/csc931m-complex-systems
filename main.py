@@ -14,23 +14,6 @@ Create network graph representation
 G = nx.Graph()
 lane_offset = 10
 
-# intersection_nodes = {
-#     1: (100, 100),
-#     2: (100, 200),
-#     3: (200, 200),
-#     4: (200, 100),
-#     5: (100, 300),
-#     6: (200, 300) 
-# }
-
-# edges = [
-#     (1, 2),
-#     (2, 3),
-#     (3, 4),
-#     (3, 6),
-#     (2, 5),
-# ]
-
 intersection_nodes = {
     1: (100, 100),
     2: (200, 100),
@@ -43,28 +26,50 @@ intersection_nodes = {
     9: (300, 300)
 }
 
-edges = [
-    (1, 2),
-    (1, 4),
-    (2, 3),
+edge_list = [
     (2, 5),
-    (3, 6),
     (4, 5),
-    (4, 7),
     (5, 6),
     (5, 8),
-    (6, 9),
-    (7, 8),
-    (8, 9)
+    # (3, 6),
+    # (4, 5),
+    # (4, 7),
+    # (5, 6),
+    # (5, 8),
+    # (6, 9),
+    # (7, 8),
+    # (8, 9)
 ]
 
+# create edge attributes with default values
+edges = {i: {'has_accident': False, 'road_speed': 50, 'one_way': False} for i in edge_list}
 
 for index, pos in intersection_nodes.items():
     G.add_node(index, pos=pos)
 
-G.add_edges_from(edges)
+# for edge in edges.keys():
+#     G.add_edge(edge[0], edge[1])
+    # G.add_edge(edge[1], edge[0])
 
-print(G)
+G.add_edges_from(edges.keys())
+
+intersection_states = {}
+
+#loop all nodes and check which nodes have more than 2 edges, and apply intersection states for each edge
+for n in G:
+    print(f"G Degree of {n}: {G.degree[n]}")
+    if G.degree[n] > 2:
+        neighbor_nodes = list(G.neighbors(n))
+        intersection_states[n] = {}
+        for index, neighbor in enumerate(neighbor_nodes): #needed to enumerate so I can use module to alternate values
+            color_state = "green"
+            if index % 2 == 0:
+                color_state = "red"
+            intersection_states[n][neighbor] = color_state
+            
+
+node_to_test = 5
+print(f"Print number of neighbor nodes of node {node_to_test}: {list(G.neighbors(node_to_test))}")
 
 """
 Now drawing the road network using the graph
@@ -76,13 +81,14 @@ canvas = tk.Canvas(root, width=800, height=600)
 canvas.pack()
 
 intersection_radius = 4
-lane_width = 3
 
-def draw_intersection(x, y, index=None, offset=5):
+def draw_intersection(x, y, index=None, offset=5, ):
     x0 = x - intersection_radius
     y0 = y - intersection_radius
     x1 = x + intersection_radius
     y1 = y + intersection_radius
+
+    # color = intersection_states[index]
 
     canvas.create_oval(x0, y0, x1, y1, fill="blue")
     canvas.create_text(x + offset, y + offset, text=index)
@@ -94,7 +100,26 @@ def draw_line_from_edge(a, b):
     a_pos = intersection_nodes[a]
     b_pos = intersection_nodes[b]
 
-    canvas.create_line(*a_pos, *b_pos, width=lane_width)
+    lane_width = 3
+    num_lanes = 2
+    # total_width = num_lanes * lane_width
+    # lane_offset = total_width / 2 + 3
+    # lane_offset = 3
+
+    # Render each lane
+    for i in range(num_lanes):
+        # Calculate the start and end positions of the lane
+        # start_x, start_y = a_pos[0] + i * lane_width - lane_offset, a_pos[1]
+        # end_x, end_y = b_pos[0] + i * lane_width - lane_offset, b_pos[1]
+        
+        start_x, start_y = a_pos[0], a_pos[1]
+        end_x, end_y = b_pos[0], b_pos[1]
+
+        # Render the lane
+        canvas.create_line(start_x, start_y, end_x, end_y, width=lane_width)
+
+
+    # canvas.create_line(*a_pos, *b_pos, width=lane_width)
 
 def place_car(x, y, car_radius=3):
     """
@@ -160,6 +185,8 @@ class Car:
 
     def compute_shortest_path(self, next_destination_node = None):
         paths = nx.shortest_path(G, self.origin_node, self.final_destination_node)
+        # print("paths", paths)
+        # print("next_dest",)
         if next_destination_node:
             paths.insert(0, next_destination_node)
         self.node_paths = iter(paths[1:]) #ommitting first index, since it is already the origin
@@ -205,21 +232,28 @@ class Car:
 """
 Draw cars in the grid, and assign their origin and destination
 """
-number_of_cars = 2
+number_of_cars = 1
 cars = []
 for index in range(number_of_cars):
     car = Car(index)
-    edge_choice = list(random.choice(edges))
+    # edge_choice = list(random.choice(list(edges.keys())))
+    # origin_choice = random.choice(edge_choice)
 
-    # print(edge_choice)
-    origin_choice = random.choice(edge_choice)
+    """
+    TEST 
+    """
+    edge_choice = list(list(edges.keys())[0])
+    origin_choice = edge_choice[1]
+    """
+    END TEST
+    """
 
     edge_choice.remove(origin_choice)
     next_immediate_destination = edge_choice[0] # the remaining of the edges list
 
     # print("origin_choice", origin_choice)
     origin = origin_choice
-    destination = 9
+    destination = 8
     # edge_choice = edges[0]
 
     p1 = intersection_nodes[origin_choice]
