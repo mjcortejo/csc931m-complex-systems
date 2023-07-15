@@ -11,7 +11,7 @@ random.seed(42)
 """
 Create network graph representation
 """
-G = nx.DiGraph()
+G = nx.Graph()
 lane_offset = 10
 
 intersection_nodes = {
@@ -30,44 +30,34 @@ intersection_states = {
     i : {"color": "green"} for i in intersection_nodes.keys()
 }
 
-# edges = [
-#     (1, 2),
-#     (1, 4),
-#     (2, 3),
-#     (2, 5),
-#     (3, 6),
-#     (4, 5),
-#     (4, 7),
-#     (5, 6),
-#     (5, 8),
-#     (6, 9),
-#     (7, 8),
-#     (8, 9)
-# ]
+edge_list = [
+    (2, 5),
+    (4, 5),
+    (5, 6),
+    (5, 8),
+    # (3, 6),
+    # (4, 5),
+    # (4, 7),
+    # (5, 6),
+    # (5, 8),
+    # (6, 9),
+    # (7, 8),
+    # (8, 9)
+]
 
-edges = {
-    (1, 2): {'has_accident': False, 'road_speed': 50, 'one_way': False},
-    (1, 4): {'has_accident': False, 'road_speed': 50, 'one_way': False},
-    (2, 3): {'has_accident': False, 'road_speed': 50, 'one_way': False},
-    (2, 5): {'has_accident': False, 'road_speed': 50, 'one_way': False},
-    (3, 6): {'has_accident': False, 'road_speed': 50, 'one_way': False},
-    (4, 5): {'has_accident': False, 'road_speed': 50, 'one_way': False},
-    (4, 7): {'has_accident': False, 'road_speed': 50, 'one_way': False},
-    (5, 6): {'has_accident': False, 'road_speed': 50, 'one_way': False},
-    (5, 8): {'has_accident': False, 'road_speed': 50, 'one_way': False},
-    (6, 9): {'has_accident': False, 'road_speed': 50, 'one_way': False},
-    (7, 8): {'has_accident': False, 'road_speed': 50, 'one_way': False},
-    (8, 9): {'has_accident': False, 'road_speed': 50, 'one_way': False}
-}
+# create edge attributes with default values
+
+edges = {i: {'has_accident': False, 'road_speed': 50, 'one_way': False} for i in edge_list}
+
 
 for index, pos in intersection_nodes.items():
     G.add_node(index, pos=pos)
 
-for edge in edges.keys():
-    G.add_edge(edge[0], edge[1])
-    G.add_edge(edge[1], edge[0])
+# for edge in edges.keys():
+#     G.add_edge(edge[0], edge[1])
+    # G.add_edge(edge[1], edge[0])
 
-# G.add_edges_from(edges.keys())
+G.add_edges_from(edges.keys())
 
 print(G)
 
@@ -199,7 +189,7 @@ class Car:
         dx = des_x - self.pos_x #use euclidean distance to judge the movement of the car even in an angle
         dy = des_y - self.pos_y
         distance = math.sqrt(dx ** 2 + dy ** 2)
-        if distance > 5:
+        if distance > 0:
             step = min(self.speed, distance)
             self.pos_x += (dx / distance) * step
             self.pos_y += (dy / distance) * step
@@ -253,7 +243,7 @@ for index in range(number_of_cars):
 
     # print("origin_choice", origin_choice)
     origin = origin_choice
-    destination = 9
+    destination = 8
     # edge_choice = edges[0]
 
     p1 = intersection_nodes[origin_choice]
