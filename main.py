@@ -26,10 +26,6 @@ intersection_nodes = {
     9: (300, 300)
 }
 
-intersection_states = {
-    i : {"color": "green"} for i in intersection_nodes.keys()
-}
-
 edge_list = [
     (2, 5),
     (4, 5),
@@ -46,9 +42,7 @@ edge_list = [
 ]
 
 # create edge attributes with default values
-
 edges = {i: {'has_accident': False, 'road_speed': 50, 'one_way': False} for i in edge_list}
-
 
 for index, pos in intersection_nodes.items():
     G.add_node(index, pos=pos)
@@ -59,7 +53,23 @@ for index, pos in intersection_nodes.items():
 
 G.add_edges_from(edges.keys())
 
-print(G)
+intersection_states = {}
+
+#loop all nodes and check which nodes have more than 2 edges, and apply intersection states for each edge
+for n in G:
+    print(f"G Degree of {n}: {G.degree[n]}")
+    if G.degree[n] > 2:
+        neighbor_nodes = list(G.neighbors(n))
+        intersection_states[n] = {}
+        for index, neighbor in enumerate(neighbor_nodes): #needed to enumerate so I can use module to alternate values
+            color_state = "green"
+            if index % 2 == 0:
+                color_state = "red"
+            intersection_states[n][neighbor] = color_state
+            
+
+node_to_test = 5
+print(f"Print number of neighbor nodes of node {node_to_test}: {list(G.neighbors(node_to_test))}")
 
 """
 Now drawing the road network using the graph
@@ -78,7 +88,7 @@ def draw_intersection(x, y, index=None, offset=5, ):
     x1 = x + intersection_radius
     y1 = y + intersection_radius
 
-    color = intersection_states[index]
+    # color = intersection_states[index]
 
     canvas.create_oval(x0, y0, x1, y1, fill="blue")
     canvas.create_text(x + offset, y + offset, text=index)
