@@ -28,8 +28,33 @@ class TrafficManager():
         self.edges = None
         self.intersection_states = {}
         self.intersection_radius = 4
+        self.default_intersection_time = 5
 
         self.__build_network__()
+
+    def change_light_state(self, intersection_node, neighboring_node, color_state=None, timer=None):
+        #change color state
+        if color_state is None:
+            if self.intersection_states[intersection_node][neighboring_node]["color"] == "red":
+                color_state = "green"
+            else:
+                color_state = "red"
+        
+        print(f"Changing the light state of intersection {intersection_node} heading to {neighboring_node} to {color_state}")
+        self.intersection_states[intersection_node][neighboring_node]["color"] = color_state
+
+        #set timer
+        self.intersection_states[intersection_node][neighboring_node]["timer"] = self.default_intersection_time if timer is None else timer
+
+    def get_intersection_light_state(self, intersection_node, neighboring_node):
+        print(f"intersection_node: {intersection_node} origin_node: {neighboring_node}")
+        return self.intersection_states[intersection_node][neighboring_node]["color"]
+    
+    def destination_has_intersection(self, intersection_node):
+        if intersection_node in self.intersection_states:
+            return True
+        else:
+            return False
 
     def __build_network__(self):
         self.intersection_nodes = {
@@ -60,14 +85,17 @@ class TrafficManager():
         #loop all nodes and check which nodes have more than 2 edges, and apply intersection states for each edge
         for n in self.G:
             print(f"G Degree of {n}: {self.G.degree[n]}")
-            if self.G.degree[n] > 2:
+            if self.G.degree[n] > 2: #check if node has more than 2 neighbors then apply intersection light states
                 neighbor_nodes = list(self.G.neighbors(n))
                 self.intersection_states[n] = {}
                 for index, neighbor in enumerate(neighbor_nodes): #needed to enumerate so I can use module to alternate values
                     color_state = "green"
-                    if index % 2 == 0:
+                    if index % 2 == 0: #alternate light states between nodes
                         color_state = "red"
-                    self.intersection_states[n][neighbor] = color_state
+                    self.intersection_states[n][neighbor] = {
+                        "color": color_state,
+                        "timer": self.default_intersection_time
+                    }
 
         """
         Draw the nodes as intersection junctions
@@ -142,6 +170,8 @@ class Car:
         self.car = None
         self.car_radius = 3
         self.arrived = False
+
+        self.light_observation_distance = 2
     
     def place_car(self, x, y):
         x0 = x - self.car_radius
@@ -164,8 +194,8 @@ class Car:
 
     def compute_shortest_path(self, next_destination_node = None):
         paths = nx.shortest_path(tm.G, self.origin_node, self.final_destination_node)
-        if next_destination_node:
-            paths.insert(0, next_destination_node)
+        # if next_destination_node:
+        #     paths.insert(0, next_destination_node)
         self.node_paths = iter(paths[1:]) #ommitting first index, since it is already the origin
         self.next_destination_node = next(self.node_paths)
 
@@ -176,14 +206,29 @@ class Car:
         dx = des_x - self.pos_x #use euclidean distance to judge the movement of the car even in an angle
         dy = des_y - self.pos_y
         distance = math.sqrt(dx ** 2 + dy ** 2)
-        if distance > 0:
+
+        def __move():
             step = min(self.speed, distance)
             self.pos_x += (dx / distance) * step
             self.pos_y += (dy / distance) * step
             self._move_to(self.pos_x, self.pos_y)
 
-        if self.pos_x == des_x and self.pos_y == des_y:
+        if distance > 0:
+            if tm.destination_has_intersection(self.next_destination_node):
+                print(f"Car {self.index}")
+                if tm.get_intersection_light_state(self.next_destination_node, self.origin_node) == "red":
+                    #do not move if intersection is red
+                    pass
+                else:
+                    __move()
+            else:
+                __move()
+
+        # elif  self.pos_x == des_x and self.pos_y == des_y:
+        elif distance <= 0:
             try:
+                print(f"Car {self.index} now heading to {self.next_destination_node} from {self.origin_node}")
+                self.origin_node = self.next_destination_node
                 self.next_destination_node = next(self.node_paths)
             except StopIteration:
                 print(self.next_destination_node)
@@ -233,23 +278,23 @@ for index in range(number_of_cars):
     destination = 8
     # edge_choice = edges[0]
 
-    p1 = tm.intersection_nodes[origin_choice]
+    p1 = tm.intersection_nodes[origin]
     p2 = tm.intersection_nodes[next_immediate_destination]
 
     #place at middle part of those edges for now
     midpoint_x = (p1[0] + p2[0]) / 2
     midpoint_y = (p1[1] + p2[1]) / 2
 
-    car.set_origin(edge_choice[0]) #p1 is x and y respectively
+    car.set_origin(next_immediate_destination) #p1 is x and y respectively
     car.place_car(midpoint_x, midpoint_y)
     car.set_destination(destination) #p2 is x and y respectively
     car.compute_shortest_path(next_destination_node=next_immediate_destination)
 
-    print(f"Car {index} origin {edge_choice[0]}, destination: {destination}")
+    print(f"Car {index} origin {origin}, immediate destination: {next_immediate_destination} destination: {destination}")
 
     cars.append(car)
 
-def task(env):
+def car_task(env):
     while True:
         for index, each_car in enumerate(cars):
             each_car.travel()
@@ -258,13 +303,22 @@ def task(env):
                 each_car.remove_car()
                 cars.pop(index)
                 
-        yield env.timeout(2)
+        yield env.timeout(1)
 
-
+def traffic_manager_task(env):
+    while True:
+        for each_intersection in tm.intersection_states:
+            for each_neighbor in tm.intersection_states[each_intersection]:
+                print("OK")
+                if tm.intersection_states[each_intersection][each_neighbor]["timer"] <= 0:
+                    tm.change_light_state(each_intersection, each_neighbor)
+                tm.intersection_states[each_intersection][each_neighbor]["timer"] -= 1
+        yield env.timeout(1)
 fps = 60
 def run():
     env = simpy.rt.RealtimeEnvironment(factor=1/60, strict = False)
-    env.process(task(env))
+    env.process(car_task(env))
+    env.process(traffic_manager_task(env))
     env.run()
 
 thread = threading.Thread(target=run)
