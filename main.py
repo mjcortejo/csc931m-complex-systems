@@ -9,69 +9,6 @@ import numpy as np
 random.seed(42)
 
 """
-Create network graph representation
-"""
-G = nx.Graph()
-lane_offset = 10
-
-intersection_nodes = {
-    1: (100, 100),
-    2: (200, 100),
-    3: (300, 100),
-    4: (100, 200),
-    5: (200, 200),
-    6: (300, 200),
-    7: (100, 300),
-    8: (200, 300),
-    9: (300, 300)
-}
-
-edge_list = [
-    (2, 5),
-    (4, 5),
-    (5, 6),
-    (5, 8),
-    # (3, 6),
-    # (4, 5),
-    # (4, 7),
-    # (5, 6),
-    # (5, 8),
-    # (6, 9),
-    # (7, 8),
-    # (8, 9)
-]
-
-# create edge attributes with default values
-edges = {i: {'has_accident': False, 'road_speed': 50, 'one_way': False} for i in edge_list}
-
-for index, pos in intersection_nodes.items():
-    G.add_node(index, pos=pos)
-
-# for edge in edges.keys():
-#     G.add_edge(edge[0], edge[1])
-    # G.add_edge(edge[1], edge[0])
-
-G.add_edges_from(edges.keys())
-
-intersection_states = {}
-
-#loop all nodes and check which nodes have more than 2 edges, and apply intersection states for each edge
-for n in G:
-    print(f"G Degree of {n}: {G.degree[n]}")
-    if G.degree[n] > 2:
-        neighbor_nodes = list(G.neighbors(n))
-        intersection_states[n] = {}
-        for index, neighbor in enumerate(neighbor_nodes): #needed to enumerate so I can use module to alternate values
-            color_state = "green"
-            if index % 2 == 0:
-                color_state = "red"
-            intersection_states[n][neighbor] = color_state
-            
-
-node_to_test = 5
-print(f"Print number of neighbor nodes of node {node_to_test}: {list(G.neighbors(node_to_test))}")
-
-"""
 Now drawing the road network using the graph
 """
 
@@ -80,70 +17,112 @@ root = tk.Tk()
 canvas = tk.Canvas(root, width=800, height=600)
 canvas.pack()
 
-intersection_radius = 4
-
-def draw_intersection(x, y, index=None, offset=5, ):
-    x0 = x - intersection_radius
-    y0 = y - intersection_radius
-    x1 = x + intersection_radius
-    y1 = y + intersection_radius
-
-    # color = intersection_states[index]
-
-    canvas.create_oval(x0, y0, x1, y1, fill="blue")
-    canvas.create_text(x + offset, y + offset, text=index)
-
-def draw_line_from_edge(a, b):
-    """
-    Accepts 2 nodes, position will be extracted from the intersection_nodes dictionary which contains the X and Y position respectively
-    """
-    a_pos = intersection_nodes[a]
-    b_pos = intersection_nodes[b]
-
-    lane_width = 3
-    num_lanes = 2
-    # total_width = num_lanes * lane_width
-    # lane_offset = total_width / 2 + 3
-    # lane_offset = 3
-
-    # Render each lane
-    for i in range(num_lanes):
-        # Calculate the start and end positions of the lane
-        # start_x, start_y = a_pos[0] + i * lane_width - lane_offset, a_pos[1]
-        # end_x, end_y = b_pos[0] + i * lane_width - lane_offset, b_pos[1]
-        
-        start_x, start_y = a_pos[0], a_pos[1]
-        end_x, end_y = b_pos[0], b_pos[1]
-
-        # Render the lane
-        canvas.create_line(start_x, start_y, end_x, end_y, width=lane_width)
-
-
-    # canvas.create_line(*a_pos, *b_pos, width=lane_width)
-
-def place_car(x, y, car_radius=3):
-    """
-    Places a car in the grid given x and y
-    """
-    x0 = x - car_radius
-    y0 = y - car_radius
-    x1 = x + car_radius
-    y1 = y + car_radius
-    car = canvas.create_oval(x0, y0, x1, y1, fill="yellow")
-    return car
-
 """
-Draw the nodes as intersection junctions
+Create network graph representation
 """
-for index, pos in intersection_nodes.items():
-    draw_intersection(*pos, index=index)
+class TrafficManager():
+    def __init__(self):
+        self.G = nx.Graph()
+        self.intersection_nodes = {}
+        self.edge_list = []
+        self.edges = None
+        self.intersection_states = {}
+        self.intersection_radius = 4
 
-"""
-Draw a line using the edge information
-"""
-for edge in edges:
-    draw_line_from_edge(*edge)
+        self.__build_network__()
 
+    def __build_network__(self):
+        self.intersection_nodes = {
+            1: (100, 100),
+            2: (200, 100),
+            3: (300, 100),
+            4: (100, 200),
+            5: (200, 200),
+            6: (300, 200),
+            7: (100, 300),
+            8: (200, 300),
+            9: (300, 300)
+        }
+        self.edge_list = [
+            (2, 5),
+            (4, 5),
+            (5, 6),
+            (5, 8),
+        ]
+
+        self.edges = {i: {'has_accident': False, 'road_speed': 50, 'one_way': False} for i in self.edge_list}
+
+        for index, pos in self.intersection_nodes.items():
+            self.G.add_node(index, pos=pos)
+
+        self.G.add_edges_from(self.edges.keys())
+
+        #loop all nodes and check which nodes have more than 2 edges, and apply intersection states for each edge
+        for n in self.G:
+            print(f"G Degree of {n}: {self.G.degree[n]}")
+            if self.G.degree[n] > 2:
+                neighbor_nodes = list(self.G.neighbors(n))
+                self.intersection_states[n] = {}
+                for index, neighbor in enumerate(neighbor_nodes): #needed to enumerate so I can use module to alternate values
+                    color_state = "green"
+                    if index % 2 == 0:
+                        color_state = "red"
+                    self.intersection_states[n][neighbor] = color_state
+
+        """
+        Draw the nodes as intersection junctions
+        """
+        for index, pos in self.intersection_nodes.items():
+            self.__draw_intersection__(*pos, index=index)
+
+        """
+        Draw a line using the edge information
+        """
+        for edge in self.edges:
+            self.__draw_line_from_edge__(*edge)
+            
+
+    def __draw_intersection__(self, x, y, index=None, offset=5):
+
+        """
+        Now drawing the road network using the graph
+        """
+        x0 = x - self.intersection_radius
+        y0 = y - self.intersection_radius
+        x1 = x + self.intersection_radius
+        y1 = y + self.intersection_radius
+
+        # color = intersection_states[index]
+
+        canvas.create_oval(x0, y0, x1, y1, fill="blue")
+        canvas.create_text(x + offset, y + offset, text=index)
+
+    def __draw_line_from_edge__(self, a, b):
+        """
+        Accepts 2 nodes, position will be extracted from the intersection_nodes dictionary which contains the X and Y position respectively
+        """
+        a_pos = self.intersection_nodes[a]
+        b_pos = self.intersection_nodes[b]
+
+        lane_width = 3
+        num_lanes = 2
+        # total_width = num_lanes * lane_width
+        # lane_offset = total_width / 2 + 3
+        # lane_offset = 3
+
+        # Render each lane
+        for i in range(num_lanes):
+            # Calculate the start and end positions of the lane
+            # start_x, start_y = a_pos[0] + i * lane_width - lane_offset, a_pos[1]
+            # end_x, end_y = b_pos[0] + i * lane_width - lane_offset, b_pos[1]
+            
+            start_x, start_y = a_pos[0], a_pos[1]
+            end_x, end_y = b_pos[0], b_pos[1]
+
+            # Render the lane
+            canvas.create_line(start_x, start_y, end_x, end_y, width=lane_width)
+
+tm = TrafficManager()
 
 """
 Car Class
@@ -184,9 +163,7 @@ class Car:
         canvas.coords(self.car, x0, y0, x1, y1)
 
     def compute_shortest_path(self, next_destination_node = None):
-        paths = nx.shortest_path(G, self.origin_node, self.final_destination_node)
-        # print("paths", paths)
-        # print("next_dest",)
+        paths = nx.shortest_path(tm.G, self.origin_node, self.final_destination_node)
         if next_destination_node:
             paths.insert(0, next_destination_node)
         self.node_paths = iter(paths[1:]) #ommitting first index, since it is already the origin
@@ -194,7 +171,7 @@ class Car:
 
     def travel(self):
         #get the paths
-        des_x, des_y = intersection_nodes[self.next_destination_node]
+        des_x, des_y = tm.intersection_nodes[self.next_destination_node]
 
         dx = des_x - self.pos_x #use euclidean distance to judge the movement of the car even in an angle
         dy = des_y - self.pos_y
@@ -232,18 +209,18 @@ class Car:
 """
 Draw cars in the grid, and assign their origin and destination
 """
-number_of_cars = 1
+number_of_cars = 2
 cars = []
 for index in range(number_of_cars):
     car = Car(index)
-    # edge_choice = list(random.choice(list(edges.keys())))
-    # origin_choice = random.choice(edge_choice)
+    edge_choice = list(random.choice(list(tm.edges.keys())))
+    origin_choice = random.choice(edge_choice)
 
     """
     TEST 
     """
-    edge_choice = list(list(edges.keys())[0])
-    origin_choice = edge_choice[1]
+    # edge_choice = list(list(tm.edges.keys())[0])
+    # origin_choice = edge_choice[1]
     """
     END TEST
     """
@@ -256,8 +233,8 @@ for index in range(number_of_cars):
     destination = 8
     # edge_choice = edges[0]
 
-    p1 = intersection_nodes[origin_choice]
-    p2 = intersection_nodes[next_immediate_destination]
+    p1 = tm.intersection_nodes[origin_choice]
+    p2 = tm.intersection_nodes[next_immediate_destination]
 
     #place at middle part of those edges for now
     midpoint_x = (p1[0] + p2[0]) / 2
