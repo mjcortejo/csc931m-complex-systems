@@ -8,6 +8,10 @@ import numpy as np
 
 random.seed(42)
 
+"""
+Now drawing the road network using the graph
+"""
+
 env = simpy.Environment()
 root = tk.Tk()
 canvas = tk.Canvas(root, width=800, height=600)
@@ -76,8 +80,13 @@ class TrafficManager():
         """
         for edge in self.edges:
             self.__draw_line_from_edge__(*edge)
+            
 
-    def __draw_intersection__(self, x, y, index=None, offset=5, ):
+    def __draw_intersection__(self, x, y, index=None, offset=5):
+
+        """
+        Now drawing the road network using the graph
+        """
         x0 = x - self.intersection_radius
         y0 = y - self.intersection_radius
         x1 = x + self.intersection_radius
@@ -113,14 +122,7 @@ class TrafficManager():
             # Render the lane
             canvas.create_line(start_x, start_y, end_x, end_y, width=lane_width)
 
-
-"""
-Now drawing the road network using the graph
-"""
-
 tm = TrafficManager()
-
-intersection_radius = 4
 
 """
 Car Class
@@ -212,9 +214,16 @@ cars = []
 for index in range(number_of_cars):
     car = Car(index)
     edge_choice = list(random.choice(list(tm.edges.keys())))
-
-    # print(edge_choice)
     origin_choice = random.choice(edge_choice)
+
+    """
+    TEST 
+    """
+    # edge_choice = list(list(tm.edges.keys())[0])
+    # origin_choice = edge_choice[1]
+    """
+    END TEST
+    """
 
     edge_choice.remove(origin_choice)
     next_immediate_destination = edge_choice[0] # the remaining of the edges list
