@@ -28,7 +28,7 @@ class TrafficManager():
         self.edges = None
         self.intersection_states = {}
         self.intersection_radius = 4
-        self.default_intersection_time = 500
+        self.default_intersection_time = 30
 
         self.__build_network__()
 
@@ -40,7 +40,7 @@ class TrafficManager():
             else:
                 color_state = "red"
         
-        print(f"Changing the light state of intersection {intersection_node} heading to {neighboring_node} to {color_state}")
+        # print(f"Changing the light state of intersection {intersection_node} heading to {neighboring_node} to {color_state}")
         self.intersection_states[intersection_node][neighboring_node]["color"] = color_state
 
         #set timer
@@ -57,10 +57,6 @@ class TrafficManager():
             return False
 
     def __build_network__(self):
-        # self.entry_nodes = {
-        #     'E1': (200, 50),
-        #     'E2': ()
-        # }
         self.intersection_nodes = {
             1: (100, 100),
             2: (200, 100),
@@ -168,7 +164,7 @@ class Car:
         self.car_radius = 3
         self.arrived = False
 
-        self.light_observation_distance = 10
+        self.light_observation_distance = 2
     
     def place_car(self, x, y):
         x0 = x - self.car_radius
@@ -205,26 +201,13 @@ class Car:
         dy = des_y - self.pos_y
         distance = math.sqrt(dx ** 2 + dy ** 2)
 
-        # print(f"Car {self.index} distance: {distance}")
-
         def __move():
             step = min(self.speed, distance)
             self.pos_x += (dx / distance) * step
             self.pos_y += (dy / distance) * step
             self._move_to(self.pos_x, self.pos_y)
 
-        if distance > self.light_observation_distance:
-            __move()
-            # if tm.destination_has_intersection(self.next_destination_node):
-            #     if tm.get_intersection_light_state(self.next_destination_node, self.origin_node) == "red":
-            #         #do not move if intersection is red
-            #         pass
-            #     else:
-            #         __move()
-            # else:
-            #     __move()
-
-        elif distance > 0:
+        if distance > 0:
             if tm.destination_has_intersection(self.next_destination_node):
                 if tm.get_intersection_light_state(self.next_destination_node, self.origin_node) == "red":
                     #do not move if intersection is red
@@ -235,7 +218,7 @@ class Car:
                 __move()
 
         # elif  self.pos_x == des_x and self.pos_y == des_y:
-        else:
+        elif distance <= 0:
             try:
                 print(f"Car {self.index} now heading to {self.next_destination_node} from {self.origin_node}")
                 self.origin_node = self.next_destination_node
@@ -264,13 +247,10 @@ class Car:
 """
 Draw cars in the grid, and assign their origin and destination
 """
-# non_intersection_edges = 
 number_of_cars = 3
 cars = []
 for index in range(number_of_cars):
     car = Car(index)
-
-    #select from a list of nodes that are not an intersection node
     edge_choice = list(random.choice(list(tm.edges.keys())))
     origin_choice = random.choice(edge_choice)
 
@@ -307,8 +287,6 @@ for index in range(number_of_cars):
 
     cars.append(car)
 
-
-car_task_delay = 5
 def car_task(env):
     while True:
         for index, each_car in enumerate(cars):
@@ -318,7 +296,7 @@ def car_task(env):
                 each_car.remove_car()
                 cars.pop(index)
                 
-        yield env.timeout(car_task_delay)
+        yield env.timeout(1)
 
 def traffic_manager_task(env):
     while True:
