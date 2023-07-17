@@ -22,13 +22,16 @@ Create network graph representation
 """
 class TrafficManager():
     def __init__(self):
-        self.G = nx.Graph()
+        self.G = nx.DiGraph()
         self.intersection_nodes = {}
         self.edge_list = []
         self.edges = None
         self.intersection_states = {}
         self.intersection_radius = 4
         self.default_intersection_time = 500
+
+        self.entry_nodes = []
+        self.entry_edges = []
 
         self.__build_network__()
 
@@ -57,11 +60,10 @@ class TrafficManager():
             return False
 
     def __build_network__(self):
-        # self.entry_nodes = {
-        #     'E1': (200, 50),
-        #     'E2': ()
-        # }
         self.intersection_nodes = {
+            #ENTRY NODES
+            'E1': (200, 50),
+            #PROPER NODES
             1: (100, 100),
             2: (200, 100),
             3: (300, 100),
@@ -73,6 +75,7 @@ class TrafficManager():
             9: (300, 300)
         }
         self.edge_list = [
+            ('E1', 2),
             (2, 5),
             (4, 5),
             (5, 6),
@@ -82,9 +85,18 @@ class TrafficManager():
         self.edges = {i: {'has_accident': False, 'road_speed': 50, 'one_way': False} for i in self.edge_list}
 
         for index, pos in self.intersection_nodes.items():
+            if type(index) == str and "E" in index:
+                self.entry_nodes.append(index)
             self.G.add_node(index, pos=pos)
 
-        self.G.add_edges_from(self.edges.keys())
+        for edges in self.edge_list:
+            # if type(index) == str and "E" in [edges[0], edges[1]]:
+            if any(isinstance(edge, str) for edge in edges) and any("E" in edge for edge in edges):
+                #for now we will assume that the entry edge is at the first element
+                self.entry_edges.append(edges)
+
+            self.G.add_edge(edges[0], edges[1])
+            self.G.add_edge(edges[1], edges[0])
 
         #loop all nodes and check which nodes have more than 2 edges, and apply intersection states for each edge
         for n in self.G:
@@ -114,7 +126,7 @@ class TrafficManager():
             self.__draw_line_from_edge__(*edge)
             
 
-    def __draw_intersection__(self, x, y, index=None, offset=5):
+    def __draw_intersection__(self, x, y, index=None, offset=5, color="blue"):
 
         """
         Now drawing the road network using the graph
@@ -125,8 +137,11 @@ class TrafficManager():
         y1 = y + self.intersection_radius
 
         # color = intersection_states[index]
+        
+        if type(index) == str and "E" in index:
+            color="purple"
 
-        canvas.create_oval(x0, y0, x1, y1, fill="blue")
+        canvas.create_oval(x0, y0, x1, y1, fill=color)
         canvas.create_text(x + offset, y + offset, text=index)
 
     def __draw_line_from_edge__(self, a, b):
@@ -270,26 +285,12 @@ cars = []
 for index in range(number_of_cars):
     car = Car(index)
 
-    #select from a list of nodes that are not an intersection node
-    edge_choice = list(random.choice(list(tm.edges.keys())))
-    origin_choice = random.choice(edge_choice)
+    edge_choice = list(random.choice(list(tm.entry_edges)))
+    origin = edge_choice[0]
 
-    """
-    TEST 
-    """
-    # edge_choice = list(list(tm.edges.keys())[0])
-    # origin_choice = edge_choice[1]
-    """
-    END TEST
-    """
+    next_immediate_destination = edge_choice[1]
 
-    edge_choice.remove(origin_choice)
-    next_immediate_destination = edge_choice[0] # the remaining of the edges list
-
-    # print("origin_choice", origin_choice)
-    origin = origin_choice
-    destination = 8
-    # edge_choice = edges[0]
+    final_destination = 8
 
     p1 = tm.intersection_nodes[origin]
     p2 = tm.intersection_nodes[next_immediate_destination]
@@ -300,10 +301,8 @@ for index in range(number_of_cars):
 
     car.set_origin(next_immediate_destination) #p1 is x and y respectively
     car.place_car(midpoint_x, midpoint_y)
-    car.set_destination(destination) #p2 is x and y respectively
+    car.set_destination(final_destination) #p2 is x and y respectively
     car.compute_shortest_path()
-
-    # print(f"Car {index} origin {origin}, immediate destination: {next_immediate_destination} destination: {destination}")
 
     cars.append(car)
 
