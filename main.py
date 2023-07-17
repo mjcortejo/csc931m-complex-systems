@@ -183,6 +183,8 @@ class Car:
         self.car_radius = 3
         self.arrived = False
 
+        self.is_spawned = False
+
         self.light_observation_distance = 10
     
     def place_car(self, x, y):
@@ -194,7 +196,6 @@ class Car:
         self.pos_x = x
         self.pos_y = y
         self.car = canvas.create_oval(x0, y0, x1, y1, fill="yellow")
-            # return car
     
     def _move_to(self, x, y):
         x0 = x - self.car_radius
@@ -204,13 +205,24 @@ class Car:
         
         canvas.coords(self.car, x0, y0, x1, y1)
 
-    def compute_shortest_path(self, next_destination_node = None):
+    def compute_shortest_path(self):
         paths = nx.shortest_path(tm.G, self.origin_node, self.final_destination_node)
         print(f"Car {self.index} from origin: {self.origin_node} paths: {paths}")
-        # if next_destination_node:
-        #     paths.insert(0, next_destination_node)
         self.node_paths = iter(paths[1:]) #ommitting first index, since it is already the origin
         self.next_destination_node = next(self.node_paths)
+
+    def spawn(self, origin, next_immediate_destination, final_destination):
+        p1 = tm.intersection_nodes[origin]
+        p2 = tm.intersection_nodes[next_immediate_destination]
+
+        #place at middle part of those edges for now
+        # midpoint_x = (p1[0] + p2[0]) / 2
+        # midpoint_y = (p1[1] + p2[1]) / 2
+        self.set_origin(origin) #p1 is x and y respectively
+        self.place_car(p1[0], p1[1])
+        self.set_destination(final_destination) #p2 is x and y respectively
+        self.compute_shortest_path()
+        self.is_spawned = True
 
     def travel(self):
         #get the paths
@@ -220,7 +232,6 @@ class Car:
         dy = des_y - self.pos_y
         distance = math.sqrt(dx ** 2 + dy ** 2)
 
-        # print(f"Car {self.index} distance: {distance}")
 
         def __move():
             step = min(self.speed, distance)
@@ -230,14 +241,6 @@ class Car:
 
         if distance > self.light_observation_distance:
             __move()
-            # if tm.destination_has_intersection(self.next_destination_node):
-            #     if tm.get_intersection_light_state(self.next_destination_node, self.origin_node) == "red":
-            #         #do not move if intersection is red
-            #         pass
-            #     else:
-            #         __move()
-            # else:
-            #     __move()
 
         elif distance > 0:
             if tm.destination_has_intersection(self.next_destination_node):
@@ -248,8 +251,6 @@ class Car:
                     __move()
             else:
                 __move()
-
-        # elif  self.pos_x == des_x and self.pos_y == des_y:
         else:
             try:
                 print(f"Car {self.index} now heading to {self.next_destination_node} from {self.origin_node}")
@@ -284,39 +285,27 @@ number_of_cars = 3
 cars = []
 for index in range(number_of_cars):
     car = Car(index)
-
-    edge_choice = list(random.choice(list(tm.entry_edges)))
-    origin = edge_choice[0]
-
-    next_immediate_destination = edge_choice[1]
-
-    final_destination = 8
-
-    p1 = tm.intersection_nodes[origin]
-    p2 = tm.intersection_nodes[next_immediate_destination]
-
-    #place at middle part of those edges for now
-    midpoint_x = (p1[0] + p2[0]) / 2
-    midpoint_y = (p1[1] + p2[1]) / 2
-
-    car.set_origin(next_immediate_destination) #p1 is x and y respectively
-    car.place_car(midpoint_x, midpoint_y)
-    car.set_destination(final_destination) #p2 is x and y respectively
-    car.compute_shortest_path()
-
     cars.append(car)
 
 
-car_task_delay = 5
+car_task_delay = 1
+spawn_delay = 100000000
 def car_task(env):
     while True:
         for index, each_car in enumerate(cars):
-            each_car.travel()
+            if not each_car.is_spawned:
+                edge_choice = list(random.choice(list(tm.entry_edges)))
+                origin = edge_choice[0]
+                
+                next_immediate_destination = edge_choice[1]
+                final_destination = 8
+                each_car.spawn(origin, next_immediate_destination, final_destination)
+            else:
+                each_car.travel()
             
             if each_car.arrived:
                 each_car.remove_car()
                 cars.pop(index)
-                
         yield env.timeout(car_task_delay)
 
 def traffic_manager_task(env):
