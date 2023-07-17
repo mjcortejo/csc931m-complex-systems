@@ -290,7 +290,8 @@ for index in range(number_of_cars):
 
 car_task_delay = 1
 spawn_delay = 100000000
-def car_task(env):
+
+def car_spawn_task(env):
     while True:
         for index, each_car in enumerate(cars):
             if not each_car.is_spawned:
@@ -300,6 +301,14 @@ def car_task(env):
                 next_immediate_destination = edge_choice[1]
                 final_destination = 8
                 each_car.spawn(origin, next_immediate_destination, final_destination)
+            yield env.timeout(100)
+            
+def car_task(env):
+    while True:
+        for index, each_car in enumerate(cars):
+            if not each_car.is_spawned:
+                #wait for spawn
+                pass
             else:
                 each_car.travel()
             
@@ -319,6 +328,7 @@ def traffic_manager_task(env):
 fps = 60
 def run():
     env = simpy.rt.RealtimeEnvironment(factor=1/60, strict = False)
+    env.process(car_spawn_task(env))
     env.process(car_task(env))
     env.process(traffic_manager_task(env))
     env.run()
