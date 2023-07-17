@@ -280,20 +280,16 @@ class Car:
 """
 Draw cars in the grid, and assign their origin and destination
 """
-# non_intersection_edges = 
 number_of_cars = 3
 cars = []
 for index in range(number_of_cars):
     car = Car(index)
     cars.append(car)
 
-
-car_task_delay = 1
-spawn_delay = 100000000
-
+spawn_delay = 100
 def car_spawn_task(env):
     while True:
-        for index, each_car in enumerate(cars):
+        for each_car in cars:
             if not each_car.is_spawned:
                 edge_choice = list(random.choice(list(tm.entry_edges)))
                 origin = edge_choice[0]
@@ -301,8 +297,9 @@ def car_spawn_task(env):
                 next_immediate_destination = edge_choice[1]
                 final_destination = 8
                 each_car.spawn(origin, next_immediate_destination, final_destination)
-            yield env.timeout(100)
-            
+            yield env.timeout(spawn_delay)
+         
+car_task_delay = 1
 def car_task(env):
     while True:
         for index, each_car in enumerate(cars):
