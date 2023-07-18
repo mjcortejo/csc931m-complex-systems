@@ -6,7 +6,7 @@ import networkx as nx
 import threading
 import numpy as np
 
-random.seed(42)
+random.seed(27)
 
 """
 Now drawing the road network using the graph
@@ -62,7 +62,8 @@ class TrafficManager():
     def __build_network__(self):
         self.intersection_nodes = {
             #ENTRY NODES
-            'E1': (200, 50),
+            'E1': (200, 50), #just above Node 2
+            'E2': (350, 200), #just right of Node 6
             #PROPER NODES
             1: (100, 100),
             2: (200, 100),
@@ -76,6 +77,7 @@ class TrafficManager():
         }
         self.edge_list = [
             ('E1', 2),
+            ('E2', 6),
             (2, 5),
             (4, 5),
             (5, 6),
@@ -232,7 +234,6 @@ class Car:
         dy = des_y - self.pos_y
         distance = math.sqrt(dx ** 2 + dy ** 2)
 
-
         def __move():
             step = min(self.speed, distance)
             self.pos_x += (dx / distance) * step
@@ -280,13 +281,13 @@ class Car:
 """
 Draw cars in the grid, and assign their origin and destination
 """
-number_of_cars = 3
+number_of_cars = 6
 cars = []
 for index in range(number_of_cars):
     car = Car(index)
     cars.append(car)
 
-spawn_delay = 100
+spawn_delay = 50
 def car_spawn_task(env):
     while True:
         for each_car in cars:
