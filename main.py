@@ -143,12 +143,15 @@ class TrafficManager():
     def manage_car_from_edge(self, car_index: int, origin: int, destination: int, how: str):
         orientation = None
 
+        if any(((origin, destination) in self.edges.keys(), (destination, origin) in self.edges.keys())):
+            orientation = (origin, destination) if (origin, destination) in self.edges.keys() else (destination, origin)
+
         #Example tuple (5, 6) Where 5 is how it is placed in the edges list and 6 is the immediate destination
-        if (origin, destination) in self.edges.keys(): 
-            orientation = (origin, destination)
-        #if (6, 5)
-        elif (destination, origin) in self.edges.keys():
-            orientation = (destination, origin)
+        # if (origin, destination) in self.edges.keys(): 
+        #     orientation = (origin, destination)
+        # #if (6, 5)
+        # elif (destination, origin) in self.edges.keys():
+        #     orientation = (destination, origin)
 
         if orientation:
             if how == "add":
@@ -160,8 +163,17 @@ class TrafficManager():
             else: raise Exception("Invalid 'how' value, must be 'add' or 'remove'")
         else:
             raise KeyError(f"Cannot find the edge {(origin, destination)} or {(destination,origin)}")
-    def __draw_intersection__(self, x, y, index=None, offset=5, color="blue"):
+        
+    def get_cars_in_edge(self, origin, destination):
+        orientation = None
+        cars_in_edge = None
+        if any(((origin, destination) in self.edges.keys(), (destination, origin) in self.edges.keys())):
+            orientation = (origin, destination) if (origin, destination) in self.edges.keys() else (destination, origin)
+            cars_in_edge = self.edges[orientation]['cars_occupied']
 
+        return cars_in_edge
+
+    def __draw_intersection__(self, x, y, index=None, offset=5, color="blue"):
         """
         Now drawing the road network using the graph
         """
@@ -273,7 +285,10 @@ class Car:
             self.pos_y += (dy / distance) * step
             self._move_to(self.pos_x, self.pos_y)
 
+        # Get the cars that are in the same edge as the current car
+
         if distance > self.light_observation_distance:
+            # cars_in_same_edge = tm.get_cars_in_edge(self.origin_node, self.next_destination_node)
             __move()
 
         elif distance > 0:
