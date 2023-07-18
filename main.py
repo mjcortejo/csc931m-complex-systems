@@ -84,7 +84,7 @@ class TrafficManager():
             (5, 8),
         ]
 
-        self.edges = {i: {'has_accident': False, 'road_speed': 50, 'one_way': False} for i in self.edge_list}
+        self.edges = {i: {'cars_occupied': [], 'has_accident': False, 'road_speed': 50, 'one_way': False} for i in self.edge_list}
 
         for index, pos in self.intersection_nodes.items():
             if type(index) == str and "E" in index:
@@ -215,7 +215,7 @@ class Car:
 
     def spawn(self, origin, next_immediate_destination, final_destination):
         p1 = tm.intersection_nodes[origin]
-        p2 = tm.intersection_nodes[next_immediate_destination]
+        # p2 = tm.intersection_nodes[next_immediate_destination]
 
         #place at middle part of those edges for now
         # midpoint_x = (p1[0] + p2[0]) / 2
