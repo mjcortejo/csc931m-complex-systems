@@ -127,7 +127,39 @@ class TrafficManager():
         for edge in self.edges:
             self.__draw_line_from_edge__(*edge)
             
+    # def add_car_to_edge(self, car_index, origin, destination):
+    #     #check the orientation of origin,destination in the tuple
+    #     orientation1 = (origin, destination)
+    #     orientation2 = (destination, origin)
+    #     if orientation1 in self.edges.keys() or orientation2 in self.edges.keys():
+    #         self.edges[orientation1]['cars_occupied'].append(car_index)
 
+    # def remove_car_from_edge(self, car_index, origin, destination):
+    #     orientation1 = (origin, destination)
+    #     orientation2 = (destination, origin)
+    #     if orientation1 in self.edges.keys() or orientation2 in self.edges.keys():
+    #         self.edges[orientation1]['cars_occupied'].remove(car_index)
+
+    def manage_car_from_edge(self, car_index: int, origin: int, destination: int, how: str):
+        orientation = None
+
+        #Example tuple (5, 6) Where 5 is how it is placed in the edges list and 6 is the immediate destination
+        if (origin, destination) in self.edges.keys(): 
+            orientation = (origin, destination)
+        #if (6, 5)
+        elif (destination, origin) in self.edges.keys():
+            orientation = (destination, origin)
+
+        if orientation:
+            if how == "add":
+                self.edges[orientation]['cars_occupied'].append(car_index)
+                print(f"Added {car_index} to {orientation}")
+            elif how == "remove":
+                self.edges[orientation]['cars_occupied'].remove(car_index)
+                print(f"Removing {car_index} to {orientation}")
+            else: raise Exception("Invalid 'how' value, must be 'add' or 'remove'")
+        else:
+            raise KeyError(f"Cannot find the edge {(origin, destination)} or {(destination,origin)}")
     def __draw_intersection__(self, x, y, index=None, offset=5, color="blue"):
 
         """
@@ -212,6 +244,7 @@ class Car:
         print(f"Car {self.index} from origin: {self.origin_node} paths: {paths}")
         self.node_paths = iter(paths[1:]) #ommitting first index, since it is already the origin
         self.next_destination_node = next(self.node_paths)
+        tm.manage_car_from_edge(self.index, self.origin_node, self.next_destination_node, how="add")
 
     def spawn(self, origin, next_immediate_destination, final_destination):
         p1 = tm.intersection_nodes[origin]
@@ -254,11 +287,16 @@ class Car:
                 __move()
         else:
             try:
+                tm.manage_car_from_edge(self.index, self.origin_node, self.next_destination_node, how="remove")
+
                 print(f"Car {self.index} now heading to {self.next_destination_node} from {self.origin_node}")
                 self.origin_node = self.next_destination_node
                 self.next_destination_node = next(self.node_paths)
+
+                tm.manage_car_from_edge(self.index, self.origin_node, self.next_destination_node, how="add")
+
             except StopIteration:
-                print(self.next_destination_node)
+                print(f"StopIteration {self.next_destination_node}")
                 self.arrived = True
                 print(f"Car {self.index} has arrived to destination")
             
