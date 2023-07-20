@@ -1,3 +1,4 @@
+from typing import Type
 import math
 import simpy
 import tkinter as tk
@@ -103,7 +104,7 @@ class TrafficManager():
             (5, 8),
         ]
 
-        self.edges = {i: {'cars_occupied': [], 'has_accident': False, 'road_speed': 50, 'one_way': False} for i in self.edge_list}
+        self.edges = {i: {'cars_occupied': {}, 'has_accident': False, 'road_speed': 50, 'one_way': False} for i in self.edge_list}
 
         # Add a node to the graph.
         for index, pos in self.intersection_nodes.items():
@@ -147,7 +148,8 @@ class TrafficManager():
         for edge in self.edges:
             self.__draw_line_from_edge__(*edge)
 
-    def manage_car_from_edge(self, car_index: int, origin: int, destination: int, how: str):
+    #TODO: Change car_object type annotation to Car,by using from typing import Type
+    def manage_car_from_edge(self, car_object: any, origin: int, destination: int, how: str):
         orientation = None
 
         if any(((origin, destination) in self.edges.keys(), (destination, origin) in self.edges.keys())):
@@ -162,11 +164,15 @@ class TrafficManager():
 
         if orientation:
             if how == "add":
-                self.edges[orientation]['cars_occupied'].append(car_index)
-                print(f"Added {car_index} to {orientation}")
+                # self.edges[orientation]['cars_occupied'].append(car_index)
+                self.edges[orientation]['cars_occupied'][car_object.index] = car_object
+                print(f"Added {car_object.index} to {orientation}")
             elif how == "remove":
-                self.edges[orientation]['cars_occupied'].remove(car_index)
-                print(f"Removing {car_index} to {orientation}")
+                # self.edges[orientation]['cars_occupied'].remove(car_index)
+                removed_car = self.edges[orientation]['cars_occupied'].pop(car_object.index, None)
+                if not removed_car:
+                    print("Removed nothing, check what the issue is. Not harmful as of this writing")
+                print(f"Removing {car_object.index} to {orientation}")
             else: raise Exception("Invalid 'how' value, must be 'add' or 'remove'")
         else:
             raise KeyError(f"Cannot find the edge {(origin, destination)} or {(destination,origin)}")
@@ -270,7 +276,7 @@ class Car:
         print(f"Car {self.index} from origin: {self.origin_node} paths: {paths}")
         self.node_paths = iter(paths[1:]) #ommitting first index, since it is already the origin
         self.next_destination_node = next(self.node_paths)
-        tm.manage_car_from_edge(self.index, self.origin_node, self.next_destination_node, how="add")
+        tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="add")
 
     def spawn(self, origin, next_immediate_destination, final_destination):
         """
@@ -329,13 +335,13 @@ class Car:
                 __move()
         else:
             try:
-                tm.manage_car_from_edge(self.index, self.origin_node, self.next_destination_node, how="remove")
+                tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="remove")
 
                 print(f"Car {self.index} now heading to {self.next_destination_node} from {self.origin_node}")
                 self.origin_node = self.next_destination_node
                 self.next_destination_node = next(self.node_paths)
 
-                tm.manage_car_from_edge(self.index, self.origin_node, self.next_destination_node, how="add")
+                tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="add")
 
             except StopIteration:
                 print(f"StopIteration {self.next_destination_node}")
