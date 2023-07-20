@@ -152,23 +152,17 @@ class TrafficManager():
     def manage_car_from_edge(self, car_object: any, origin: int, destination: int, how: str):
         orientation = None
 
+        # Example tuple (1, 2) Where 1 is how it is placed in the edges list originally and 2 is the immediate destination
+        # And a instance where an agent is going from (2, 1) we still want to recognize this as (1, 2) as it was defined in the edges list
+        # This is what this function does by switching its orientation if this instance happens to be happening
         if any(((origin, destination) in self.edges.keys(), (destination, origin) in self.edges.keys())):
             orientation = (origin, destination) if (origin, destination) in self.edges.keys() else (destination, origin)
 
-        #Example tuple (5, 6) Where 5 is how it is placed in the edges list and 6 is the immediate destination
-        # if (origin, destination) in self.edges.keys(): 
-        #     orientation = (origin, destination)
-        # #if (6, 5)
-        # elif (destination, origin) in self.edges.keys():
-        #     orientation = (destination, origin)
-
         if orientation:
             if how == "add":
-                # self.edges[orientation]['cars_occupied'].append(car_index)
                 self.edges[orientation]['cars_occupied'][car_object.index] = car_object
                 print(f"Added {car_object.index} to {orientation}")
             elif how == "remove":
-                # self.edges[orientation]['cars_occupied'].remove(car_index)
                 removed_car = self.edges[orientation]['cars_occupied'].pop(car_object.index, None)
                 if not removed_car:
                     print("Removed nothing, check what the issue is. Not harmful as of this writing")
