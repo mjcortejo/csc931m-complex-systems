@@ -109,7 +109,10 @@ class Car:
 
         def __move():
             """
-             Move the agent to the next position based on the speed and distance. This is called by the move ()
+             Move the agent to the next position based on the speed and distance.
+
+            #WARN: Starting to get performance issues
+
             """
 
             # Get the cars that are in the same edge as the current car
@@ -119,11 +122,10 @@ class Car:
             self.cars_in_the_same_edge = {k:v for k,v in self.cars_in_the_same_edge.items() if k != self.index}
             # print(f"{self.cars_in_the_same_edge.keys()} called by {self.index}")
 
-            #get distance of other
+            #get distance of other cars
             distance_to_other_cars = [math.dist(adjacent_car.get_coords(), self.get_coords()) for index, adjacent_car in self.cars_in_the_same_edge.items()]
             print(distance_to_other_cars)
 
-            #WARN: Starting to get performance issues
 
             step = min(self.speed, distance)
             self.pos_x += (dx / distance) * step
