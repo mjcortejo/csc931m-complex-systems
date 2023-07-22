@@ -16,7 +16,155 @@ Now drawing the road network using the graph
 env = simpy.Environment()
 root = tk.Tk()
 canvas = tk.Canvas(root, width=800, height=600)
-canvas.pack()
+canvas.pack()    
+
+"""
+Car Class
+"""
+class Car:
+    def __init__(self, index):
+        self.index = index
+        self.pos_x = None
+        self.pos_y = None
+
+        self.origin_node = None
+        self.node_paths = None
+        self.next_destination_node = None
+        self.final_destination_node = None
+
+        self.speed = 1
+        self.car = None
+        self.car_radius = 3
+        self.arrived = False
+
+        self.is_spawned = False
+
+        self.light_observation_distance = 10
+        self.cars_in_the_same_edge = None
+    
+    def place_car(self, x, y):
+        x0 = x - self.car_radius
+        y0 = y - self.car_radius
+        x1 = x + self.car_radius
+        y1 = y + self.car_radius
+
+        self.pos_x = x
+        self.pos_y = y
+        self.car = canvas.create_oval(x0, y0, x1, y1, fill="yellow")
+
+    def get_coords(self):
+        x0, y0, x1, y1 = canvas.coords(self.car)
+        return x0 + self.car_radius, y0 + self.car_radius, x1 - self.car_radius, y1 - self.car_radius
+    
+    def _move_to(self, x, y):
+        x0 = x - self.car_radius
+        y0 = y - self.car_radius
+        x1 = x + self.car_radius
+        y1 = y + self.car_radius
+        
+        canvas.coords(self.car, x0, y0, x1, y1)
+
+    def compute_shortest_path(self):
+        """
+        Compute the car agent's shortest path using NetworkX's shortest_path function (default: Djikstra)
+        """        
+        paths = nx.shortest_path(tm.G, self.origin_node, self.final_destination_node)
+        print(f"Car {self.index} from origin: {self.origin_node} paths: {paths}")
+        self.node_paths = iter(paths[1:]) #ommitting first index, since it is already the origin
+        self.next_destination_node = next(self.node_paths)
+        tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="add")
+
+    def spawn(self, origin, next_immediate_destination, final_destination):
+        """
+         Spawn car at the origin node (usually an entry node).
+         
+         @param origin - origin of car to spawn
+         @param next_immediate_destination - next destination of car to spawn
+         @param final_destination - final destination of car to spawn
+        """
+        p1 = tm.intersection_nodes[origin]
+        # p2 = tm.intersection_nodes[next_immediate_destination]
+
+        #place at middle part of those edges for now
+        # midpoint_x = (p1[0] + p2[0]) / 2
+        # midpoint_y = (p1[1] + p2[1]) / 2
+        self.set_origin(origin) #p1 is x and y respectively
+        self.place_car(p1[0], p1[1])
+        self.set_destination(final_destination) #p2 is x and y respectively
+        self.compute_shortest_path()
+        self.is_spawned = True
+
+    def travel(self):
+        """
+         Move the car to the next destination based on the speed and distance. This is called every frame
+        """
+        des_x, des_y = tm.intersection_nodes[self.next_destination_node]
+
+        dx = des_x - self.pos_x #use euclidean distance to judge the movement of the car even in an angle
+        dy = des_y - self.pos_y
+        distance = math.sqrt(dx ** 2 + dy ** 2)
+
+        def __move():
+            """
+             Move the agent to the next position based on the speed and distance. This is called by the move ()
+            """
+
+            # Get the cars that are in the same edge as the current car
+            self.cars_in_the_same_edge = tm.get_cars_in_edge(self.origin_node, self.next_destination_node)
+            distance_to_other_cars = [adjacent_car.get_coords() for index, adjacent_car in self.cars_in_the_same_edge.items()]
+            # print(distance_to_other_cars)
+            #what does canvas coords return
+
+            #WARN: Starting to get performance issues
+
+            step = min(self.speed, distance)
+            self.pos_x += (dx / distance) * step
+            self.pos_y += (dy / distance) * step
+            self._move_to(self.pos_x, self.pos_y)
+
+        # This method is called when the distance is below the light observation distance threshold.
+        if distance > self.light_observation_distance:
+            __move()
+
+        elif distance > 0:
+            # Move the destination to the next destination node if the intersection is green
+            if tm.destination_has_intersection(self.next_destination_node):
+                if tm.get_intersection_light_state(self.next_destination_node, self.origin_node) == "red":
+                    #do not move if intersection is red
+                    pass
+                else:
+                    __move()
+            else:
+                __move()
+        else:
+            try:
+                tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="remove")
+
+                print(f"Car {self.index} now heading to {self.next_destination_node} from {self.origin_node}")
+                self.origin_node = self.next_destination_node
+                self.next_destination_node = next(self.node_paths)
+
+                tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="add")
+
+            except StopIteration:
+                print(f"StopIteration {self.next_destination_node}")
+                self.arrived = True
+                print(f"Car {self.index} has arrived to destination")
+            
+    def set_origin(self, origin):
+        """
+        origin (Integer): node index from intersection_nodes dictionary (e.g. 1)
+        """
+        self.origin_node = origin
+
+    def set_destination(self, destination):
+        """
+        destination (Integer): node index from intersection_nodes dictionary (e.g. 1)
+        """
+        self.final_destination_node = destination  
+
+    def remove_car(self):
+        canvas.delete(self.car)
 
 """
 Create network graph representation
@@ -67,10 +215,8 @@ class TrafficManager():
          Checks if the destination node has an intersection. This is used to determine if there is a point in the destination to be intersected with the source
          
          @param intersection_node - The node that we are interested in
-         
-         @return True if the destination node has an intersection False if
+         @return true if the intersection node is in the intersection states
         """
-        # Returns true if the intersection node is in the intersection states
         if intersection_node in self.intersection_states:
             return True
         else:
@@ -95,6 +241,8 @@ class TrafficManager():
             8: (200, 300),
             9: (300, 300)
         }
+
+        #use a real layout like EDSA or Ayala or BGC
         self.edge_list = [
             ('E1', 2),
             ('E2', 6),
@@ -149,7 +297,7 @@ class TrafficManager():
             self.__draw_line_from_edge__(*edge)
 
     #TODO: Change car_object type annotation to Car,by using from typing import Type
-    def manage_car_from_edge(self, car_object: any, origin: int, destination: int, how: str):
+    def manage_car_from_edge(self, car_object: Car, origin: int, destination: int, how: str):
         orientation = None
 
         # Example tuple (1, 2) Where 1 is how it is placed in the edges list originally and 2 is the immediate destination
@@ -171,7 +319,7 @@ class TrafficManager():
         else:
             raise KeyError(f"Cannot find the edge {(origin, destination)} or {(destination,origin)}")
         
-    def get_cars_in_edge(self, origin, destination):
+    def get_cars_in_edge(self, origin, destination, exclude_car=None) -> list[Car]:
         orientation = None
         cars_in_edge = None
         if any(((origin, destination) in self.edges.keys(), (destination, origin) in self.edges.keys())):
@@ -223,140 +371,6 @@ class TrafficManager():
             canvas.create_line(start_x, start_y, end_x, end_y, width=lane_width)
 
 tm = TrafficManager()
-
-"""
-Car Class
-"""
-class Car:
-    def __init__(self, index):
-        self.index = index
-        self.pos_x = None
-        self.pos_y = None
-
-        self.origin_node = None
-        self.node_paths = None
-        self.next_destination_node = None
-        self.final_destination_node = None
-
-        self.speed = 1
-        self.car = None
-        self.car_radius = 3
-        self.arrived = False
-
-        self.is_spawned = False
-
-        self.light_observation_distance = 10
-    
-    def place_car(self, x, y):
-        x0 = x - self.car_radius
-        y0 = y - self.car_radius
-        x1 = x + self.car_radius
-        y1 = y + self.car_radius
-
-        self.pos_x = x
-        self.pos_y = y
-        self.car = canvas.create_oval(x0, y0, x1, y1, fill="yellow")
-    
-    def _move_to(self, x, y):
-        x0 = x - self.car_radius
-        y0 = y - self.car_radius
-        x1 = x + self.car_radius
-        y1 = y + self.car_radius
-        
-        canvas.coords(self.car, x0, y0, x1, y1)
-
-    def compute_shortest_path(self):
-        paths = nx.shortest_path(tm.G, self.origin_node, self.final_destination_node)
-        print(f"Car {self.index} from origin: {self.origin_node} paths: {paths}")
-        self.node_paths = iter(paths[1:]) #ommitting first index, since it is already the origin
-        self.next_destination_node = next(self.node_paths)
-        tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="add")
-
-    def spawn(self, origin, next_immediate_destination, final_destination):
-        """
-         Spawn car at the origin node (usually an entry node). This is used to generate an edge from origin to next_immediate_destination
-         
-         @param origin - origin of car to spawn
-         @param next_immediate_destination - next destination of car to spawn
-         @param final_destination - final destination of car to spawn ( can be same
-        """
-        p1 = tm.intersection_nodes[origin]
-        # p2 = tm.intersection_nodes[next_immediate_destination]
-
-        #place at middle part of those edges for now
-        # midpoint_x = (p1[0] + p2[0]) / 2
-        # midpoint_y = (p1[1] + p2[1]) / 2
-        self.set_origin(origin) #p1 is x and y respectively
-        self.place_car(p1[0], p1[1])
-        self.set_destination(final_destination) #p2 is x and y respectively
-        self.compute_shortest_path()
-        self.is_spawned = True
-
-    def travel(self):
-        """
-         Move the car to the next destination based on the speed and distance. This is called every frame
-        """
-        des_x, des_y = tm.intersection_nodes[self.next_destination_node]
-
-        dx = des_x - self.pos_x #use euclidean distance to judge the movement of the car even in an angle
-        dy = des_y - self.pos_y
-        distance = math.sqrt(dx ** 2 + dy ** 2)
-
-        def __move():
-            """
-             Move the agent to the next position based on the speed and distance. This is called by the move ()
-            """
-            step = min(self.speed, distance)
-            self.pos_x += (dx / distance) * step
-            self.pos_y += (dy / distance) * step
-            self._move_to(self.pos_x, self.pos_y)
-
-        # Get the cars that are in the same edge as the current car
-        # This method is called when the distance is below the light observation distance threshold.
-        if distance > self.light_observation_distance:
-            # cars_in_same_edge = tm.get_cars_in_edge(self.origin_node, self.next_destination_node)
-            __move()
-
-        elif distance > 0:
-            # Move the destination to the next destination node if the intersection is green
-            if tm.destination_has_intersection(self.next_destination_node):
-                if tm.get_intersection_light_state(self.next_destination_node, self.origin_node) == "red":
-                    #do not move if intersection is red
-                    pass
-                else:
-                    __move()
-            else:
-                __move()
-        else:
-            try:
-                tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="remove")
-
-                print(f"Car {self.index} now heading to {self.next_destination_node} from {self.origin_node}")
-                self.origin_node = self.next_destination_node
-                self.next_destination_node = next(self.node_paths)
-
-                tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="add")
-
-            except StopIteration:
-                print(f"StopIteration {self.next_destination_node}")
-                self.arrived = True
-                print(f"Car {self.index} has arrived to destination")
-            
-    def set_origin(self, origin):
-        """
-        origin (Integer): node index from intersection_nodes dictionary (e.g. 1)
-        """
-        self.origin_node = origin
-
-    def set_destination(self, destination):
-        """
-        destination (Integer): node index from intersection_nodes dictionary (e.g. 1)
-        """
-        self.final_destination_node = destination  
-
-    def remove_car(self):
-        canvas.delete(self.car)
-    
 
 """
 Draw cars in the grid, and assign their origin and destination
