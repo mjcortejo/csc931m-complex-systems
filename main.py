@@ -52,9 +52,12 @@ class Car:
         self.pos_y = y
         self.car = canvas.create_oval(x0, y0, x1, y1, fill="yellow")
 
-    def get_coords(self):
+    def get_coords(self, xy_only=True):
         x0, y0, x1, y1 = canvas.coords(self.car)
-        return x0 + self.car_radius, y0 + self.car_radius, x1 - self.car_radius, y1 - self.car_radius
+        if xy_only:
+            return x0, y0
+        else:
+            return x0 + self.car_radius, y0 + self.car_radius, x1 - self.car_radius, y1 - self.car_radius
     
     def _move_to(self, x, y):
         x0 = x - self.car_radius
@@ -111,9 +114,14 @@ class Car:
 
             # Get the cars that are in the same edge as the current car
             self.cars_in_the_same_edge = tm.get_cars_in_edge(self.origin_node, self.next_destination_node)
-            distance_to_other_cars = [adjacent_car.get_coords() for index, adjacent_car in self.cars_in_the_same_edge.items()]
-            # print(distance_to_other_cars)
-            #what does canvas coords return
+
+            #exclude the car in the dictionary since we don't need to be checking its own position
+            self.cars_in_the_same_edge = {k:v for k,v in self.cars_in_the_same_edge.items() if k != self.index}
+            # print(f"{self.cars_in_the_same_edge.keys()} called by {self.index}")
+
+            #get distance of other
+            distance_to_other_cars = [math.dist(adjacent_car.get_coords(), self.get_coords()) for index, adjacent_car in self.cars_in_the_same_edge.items()]
+            print(distance_to_other_cars)
 
             #WARN: Starting to get performance issues
 
