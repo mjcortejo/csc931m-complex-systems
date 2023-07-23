@@ -119,13 +119,15 @@ class Car:
             self.cars_in_the_same_edge = tm.get_cars_in_edge(self.origin_node, self.next_destination_node)
 
             #exclude the car in the dictionary since we don't need to be checking its own position
+
+            #if transformed into a queue, just get the items before the index of the current car
+
             self.cars_in_the_same_edge = {k:v for k,v in self.cars_in_the_same_edge.items() if k != self.index}
             # print(f"{self.cars_in_the_same_edge.keys()} called by {self.index}")
 
             #get distance of other cars
             distance_to_other_cars = [math.dist(adjacent_car.get_coords(), self.get_coords()) for index, adjacent_car in self.cars_in_the_same_edge.items()]
             print(distance_to_other_cars)
-
 
             step = min(self.speed, distance)
             self.pos_x += (dx / distance) * step
