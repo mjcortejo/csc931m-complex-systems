@@ -40,7 +40,6 @@ class Car:
         self.is_spawned = False
 
         self.light_observation_distance = 10
-        self.cars_in_the_same_edge = None
     
     def place_car(self, x, y):
         x0 = x - self.car_radius
@@ -115,18 +114,12 @@ class Car:
 
             """
 
-            # Get the cars that are in the same edge as the current car
-            self.cars_in_the_same_edge = tm.get_cars_in_edge(self.origin_node, self.next_destination_node)
-
-            #exclude the car in the dictionary since we don't need to be checking its own position
-
-            #if transformed into a queue, just get the items before the index of the current car
-
-            self.cars_in_the_same_edge = {k:v for k,v in self.cars_in_the_same_edge.items() if k != self.index}
-            # print(f"{self.cars_in_the_same_edge.keys()} called by {self.index}")
+            # Get the cars that are in the same edge as the current car. but also remove self in that list to prevent measuring its own position
+            cars_in_the_same_edge = tm.get_cars_in_edge(self.origin_node, self.next_destination_node)
+            cars_in_the_same_edge.remove(self)
 
             #get distance of other cars
-            distance_to_other_cars = [math.dist(adjacent_car.get_coords(), self.get_coords()) for index, adjacent_car in self.cars_in_the_same_edge.items()]
+            distance_to_other_cars = [math.dist(adjacent_car.get_coords(), self.get_coords()) for adjacent_car in cars_in_the_same_edge]
             print(distance_to_other_cars)
 
             step = min(self.speed, distance)
@@ -264,7 +257,7 @@ class TrafficManager():
             (5, 8),
         ]
 
-        self.edges = {i: {'cars_occupied': {}, 'has_accident': False, 'road_speed': 50, 'one_way': False} for i in self.edge_list}
+        self.edges = {i: {'cars_occupied': [], 'has_accident': False, 'road_speed': 50, 'one_way': False} for i in self.edge_list}
 
         # Add a node to the graph.
         for index, pos in self.intersection_nodes.items():
@@ -320,23 +313,21 @@ class TrafficManager():
 
         if orientation:
             if how == "add":
-                self.edges[orientation]['cars_occupied'][car_object.index] = car_object
+                self.edges[orientation]['cars_occupied'].append(car_object)
                 print(f"Added {car_object.index} to {orientation}")
             elif how == "remove":
-                removed_car = self.edges[orientation]['cars_occupied'].pop(car_object.index, None)
-                if not removed_car:
-                    print("Removed nothing, check what the issue is. Not harmful as of this writing")
+                self.edges[orientation]['cars_occupied'].remove(car_object)
                 print(f"Removing {car_object.index} to {orientation}")
             else: raise Exception("Invalid 'how' value, must be 'add' or 'remove'")
         else:
             raise KeyError(f"Cannot find the edge {(origin, destination)} or {(destination,origin)}")
         
-    def get_cars_in_edge(self, origin, destination, exclude_car=None) -> list[Car]:
+    def get_cars_in_edge(self, origin, destination) -> list[Car]:
         orientation = None
         cars_in_edge = None
         if any(((origin, destination) in self.edges.keys(), (destination, origin) in self.edges.keys())):
             orientation = (origin, destination) if (origin, destination) in self.edges.keys() else (destination, origin)
-            cars_in_edge = self.edges[orientation]['cars_occupied']
+            cars_in_edge = self.edges[orientation]['cars_occupied'].copy() #shallow copy as we don't want to alter original list of cars
 
         return cars_in_edge
 
