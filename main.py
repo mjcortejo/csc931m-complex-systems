@@ -39,7 +39,8 @@ class Car:
 
         self.is_spawned = False
 
-        self.light_observation_distance = 10
+        self.light_observation_distance = 5
+        self.car_collision_observe_distance = 10
     
     def place_car(self, x, y):
         x0 = x - self.car_radius
@@ -116,16 +117,32 @@ class Car:
 
             # Get the cars that are in the same edge as the current car. but also remove self in that list to prevent measuring its own position
             cars_in_the_same_edge = tm.get_cars_in_edge(self.origin_node, self.next_destination_node)
-            cars_in_the_same_edge.remove(self)
 
-            #get distance of other cars
-            distance_to_other_cars = [math.dist(adjacent_car.get_coords(), self.get_coords()) for adjacent_car in cars_in_the_same_edge]
-            print(distance_to_other_cars)
+            current_car_index = cars_in_the_same_edge.index(self)
 
-            step = min(self.speed, distance)
-            self.pos_x += (dx / distance) * step
-            self.pos_y += (dy / distance) * step
-            self._move_to(self.pos_x, self.pos_y)
+            print(current_car_index)
+
+            # Calculate the number of cars to remove from the end. This will assume that cars ahead of the entry order will only be observed
+            items_to_remove = len(cars_in_the_same_edge) - current_car_index - 1
+            cars_in_the_same_edge = cars_in_the_same_edge[:-items_to_remove]
+
+            if cars_in_the_same_edge:
+                cars_in_the_same_edge.remove(self)
+
+            #get distance of other cars, variable name originally distance_to_other_cars
+            distance_to_front_cars = [math.dist(adjacent_car.get_coords(), self.get_coords()) for adjacent_car in cars_in_the_same_edge] if cars_in_the_same_edge else None
+
+            if distance_to_front_cars:
+                print(min(distance_to_front_cars))
+                nearest_car = min(distance_to_front_cars)
+            
+            nearest_car = min(distance_to_front_cars) if distance_to_front_cars else None
+
+            if not nearest_car or nearest_car > self.car_collision_observe_distance:
+                step = min(self.speed, distance)
+                self.pos_x += (dx / distance) * step
+                self.pos_y += (dy / distance) * step
+                self._move_to(self.pos_x, self.pos_y)
 
         # This method is called when the distance is below the light observation distance threshold.
         if distance > self.light_observation_distance:
