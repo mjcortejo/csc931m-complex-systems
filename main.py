@@ -110,30 +110,22 @@ class Car:
         def __move():
             """
              Move the agent to the next position based on the speed and distance.
-
             #WARN: Starting to get performance issues
-
             """
 
             # Get the cars that are in the same edge as the current car. but also remove self in that list to prevent measuring its own position
-            cars_in_the_same_edge = tm.get_cars_in_edge(self.origin_node, self.next_destination_node)
+            # if self.index == 2:
+            #     print("OH NO")
 
+            cars_in_the_same_edge = tm.get_cars_in_edge(self.origin_node, self.next_destination_node)
             current_car_index = cars_in_the_same_edge.index(self)
 
-            print(current_car_index)
-
-            # Calculate the number of cars to remove from the end. This will assume that cars ahead of the entry order will only be observed
-            items_to_remove = len(cars_in_the_same_edge) - current_car_index - 1
-            cars_in_the_same_edge = cars_in_the_same_edge[:-items_to_remove]
-
-            if cars_in_the_same_edge:
-                cars_in_the_same_edge.remove(self)
+            cars_in_the_same_edge = cars_in_the_same_edge[:current_car_index]
 
             #get distance of other cars, variable name originally distance_to_other_cars
             distance_to_front_cars = [math.dist(adjacent_car.get_coords(), self.get_coords()) for adjacent_car in cars_in_the_same_edge] if cars_in_the_same_edge else None
 
             if distance_to_front_cars:
-                print(min(distance_to_front_cars))
                 nearest_car = min(distance_to_front_cars)
             
             nearest_car = min(distance_to_front_cars) if distance_to_front_cars else None
