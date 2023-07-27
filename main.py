@@ -15,7 +15,12 @@ Now drawing the road network using the graph
 
 env = simpy.Environment()
 root = tk.Tk()
+child = tk.Toplevel()
+
 canvas = tk.Canvas(root, width=800, height=600)
+child_canvas = tk.Canvas(child, width=500, height=1000)
+
+child_canvas.pack()
 canvas.pack()    
 
 """
@@ -41,6 +46,8 @@ class Car:
 
         self.light_observation_distance = 5
         self.car_collision_observe_distance = 10
+        
+        self.cars_in_front = None
     
     def place_car(self, x, y):
         x0 = x - self.car_radius
@@ -121,6 +128,8 @@ class Car:
 
             #get distance of other cars, variable name originally distance_to_other_cars
             distance_to_front_cars = [math.dist(adjacent_car.get_coords(), self.get_coords()) for adjacent_car in cars_in_the_same_edge] if cars_in_the_same_edge else None
+
+            self.cars_in_front = distance_to_front_cars
 
             #then get nearest car by performing min() func to the distance of other front cars
             nearest_car = min(distance_to_front_cars) if distance_to_front_cars else None
@@ -384,21 +393,36 @@ Draw cars in the grid, and assign their origin and destination
 """
 number_of_cars = 6
 cars = []
+
+#create a text canvas widget
+canvas_index = 0
+logs = {}
+
+
 for index in range(number_of_cars):
     car = Car(index)
     cars.append(car)
 
 spawn_delay = 50
+y_offset = 50
+
 def car_spawn_task(env):
+    global canvas_index
     while True:
         for each_car in cars:
             if not each_car.is_spawned:
+                canvas_index += 1
                 edge_choice = list(random.choice(list(tm.entry_edges)))
                 origin = edge_choice[0]
                 
                 next_immediate_destination = edge_choice[1]
                 final_destination = 8
                 each_car.spawn(origin, next_immediate_destination, final_destination)
+
+                #generate text widget
+                text_log = child_canvas.create_text(0, y_offset * canvas_index, anchor='nw', text="FUCK")
+                logs[each_car.index] = text_log
+
             yield env.timeout(spawn_delay)
          
 car_task_delay = 1
@@ -409,12 +433,28 @@ def car_task(env):
                 #wait for spawn
                 pass
             else:
+                message_log = f"""
+                Car: {each_car.index}
+                    distance_to_other_cars: {each_car.cars_in_front}
+                """ 
+                child_canvas.itemconfigure(logs[each_car.index], text=message_log)
                 each_car.travel()
             
             if each_car.arrived:
                 each_car.remove_car()
                 cars.pop(index)
         yield env.timeout(car_task_delay)
+
+# def car_log(env):
+#     while True:
+#         for index, each_car in enumerate(cars):
+#             if each_car.is_spawned:
+#                 message_log = f"""
+#                 Car {each_car.index}:
+#                 distance_to_other_cars: {each_car.cars_in_front}
+#                 """ 
+#                 child_canvas.itemconfigure(logs[each_car.index], text=message_log)
+#         yield env.timeout(1)
 
 def traffic_manager_task(env):
     while True:
@@ -430,6 +470,7 @@ def run():
     env.process(car_spawn_task(env))
     env.process(car_task(env))
     env.process(traffic_manager_task(env))
+    # env.process(car_log(env))
     env.run()
 
 thread = threading.Thread(target=run)
