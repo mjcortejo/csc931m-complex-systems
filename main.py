@@ -93,11 +93,7 @@ class Car:
          @param final_destination - final destination of car to spawn
         """
         p1 = tm.intersection_nodes[origin]
-        # p2 = tm.intersection_nodes[next_immediate_destination]
 
-        #place at middle part of those edges for now
-        # midpoint_x = (p1[0] + p2[0]) / 2
-        # midpoint_y = (p1[1] + p2[1]) / 2
         self.set_origin(origin) #p1 is x and y respectively
         self.place_car(p1[0], p1[1])
         self.set_destination(final_destination) #p2 is x and y respectively
@@ -270,7 +266,12 @@ class TrafficManager():
             (5, 8),
         ]
 
-        self.edges = {i: {'cars_occupied': [], 'has_accident': False, 'road_speed': 50, 'one_way': False} for i in self.edge_list}
+        # self.edges = {i: {'cars_occupied': [], 'has_accident': False, 'road_speed': 50, 'one_way': False} for i in self.edge_list}
+        self.edges = {}
+
+        for i in self.edge_list:
+            self.edges[(i[0], i[1])] = {'cars_occupied': [], 'has_accident': False, 'road_speed': 50, 'one_way': False}
+            self.edges[(i[1], i[0])] = {'cars_occupied': [], 'has_accident': False, 'road_speed': 50, 'one_way': False}
 
         # Add a node to the graph.
         for index, pos in self.intersection_nodes.items():
@@ -299,6 +300,8 @@ class TrafficManager():
                 # This function is used to generate a dictionary of light states between nodes and neighbors
                 for index, neighbor in enumerate(neighbor_nodes): #needed to enumerate so I can use module to alternate values
                     color_state = "green"
+
+                    # TODO: Change this back to 3 once its fixed
                     if index % 3 == 0: #alternate light states between nodes
                         color_state = "red"
                     self.intersection_states[n][neighbor] = {
@@ -318,13 +321,13 @@ class TrafficManager():
 
     #TODO: Change car_object type annotation to Car,by using from typing import Type
     def manage_car_from_edge(self, car_object: Car, origin: int, destination: int, how: str):
-        orientation = None
+        orientation = (origin, destination)
 
         # Example tuple (1, 2) Where 1 is how it is placed in the edges list originally and 2 is the immediate destination
         # And a instance where an agent is going from (2, 1) we still want to recognize this as (1, 2) as it was defined in the edges list
         # This is what this function does by switching its orientation if this instance happens to be happening
-        if any(((origin, destination) in self.edges.keys(), (destination, origin) in self.edges.keys())):
-            orientation = (origin, destination) if (origin, destination) in self.edges.keys() else (destination, origin)
+        # if any(((origin, destination) in self.edges.keys(), (destination, origin) in self.edges.keys())):
+        #     orientation = (origin, destination) if (origin, destination) in self.edges.keys() else (destination, origin)
 
         if orientation:
             if how == "add":
@@ -416,9 +419,14 @@ def car_spawn_task(env):
                 canvas_index += 1
                 edge_choice = list(random.choice(list(tm.entry_edges)))
                 origin = edge_choice[0]
-                
                 next_immediate_destination = edge_choice[1]
-                final_destination = 8
+
+                if origin == "E1":
+                    final_destination = 6
+                elif origin == "E2":
+                    final_destination = 8
+                # if canvas_index % 2 == 0:
+                #     final_destination = 6
                 each_car.spawn(origin, next_immediate_destination, final_destination)
 
                 #generate text widget
@@ -446,17 +454,6 @@ def car_task(env):
                 each_car.remove_car()
                 cars.pop(index)
         yield env.timeout(car_task_delay)
-
-# def car_log(env):
-#     while True:
-#         for index, each_car in enumerate(cars):
-#             if each_car.is_spawned:
-#                 message_log = f"""
-#                 Car {each_car.index}:
-#                 distance_to_other_cars: {each_car.cars_in_front}
-#                 """ 
-#                 child_canvas.itemconfigure(logs[each_car.index], text=message_log)
-#         yield env.timeout(1)
 
 def traffic_manager_task(env):
     while True:
