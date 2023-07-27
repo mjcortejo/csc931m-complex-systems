@@ -293,18 +293,20 @@ class TrafficManager():
         for n in self.G:
             # print(f"G Degree of {n}: {self.G.degree[n]}")
             # Apply intersection light states between nodes
-            if self.G.degree[n] > 2: #check if node has more than 2 neighbors then apply intersection light states
+            if self.G.in_degree[n] > 2: #check if node has more than 2 neighbors then apply intersection light states
                 neighbor_nodes = list(self.G.neighbors(n))
                 self.intersection_states[n] = {}
                 # This function is used to generate a dictionary of light states between nodes and neighbors
                 for index, neighbor in enumerate(neighbor_nodes): #needed to enumerate so I can use module to alternate values
                     color_state = "green"
-                    if index % 2 == 0: #alternate light states between nodes
+                    if index % 3 == 0: #alternate light states between nodes
                         color_state = "red"
                     self.intersection_states[n][neighbor] = {
                         "color": color_state,
                         "timer": self.default_intersection_time
                     }
+
+                    print(f"Setting {n}, Neighbor {neighbor} to {color_state}")
 
         # Draw the intersection of all nodes in the intersection_nodes.
         for index, pos in self.intersection_nodes.items():
