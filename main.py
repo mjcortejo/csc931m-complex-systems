@@ -114,9 +114,6 @@ class Car:
             """
 
             # Get the cars that are in the same edge as the current car. but also remove self in that list to prevent measuring its own position
-            # if self.index == 2:
-            #     print("OH NO")
-
             cars_in_the_same_edge = tm.get_cars_in_edge(self.origin_node, self.next_destination_node)
             current_car_index = cars_in_the_same_edge.index(self)
 
@@ -125,9 +122,7 @@ class Car:
             #get distance of other cars, variable name originally distance_to_other_cars
             distance_to_front_cars = [math.dist(adjacent_car.get_coords(), self.get_coords()) for adjacent_car in cars_in_the_same_edge] if cars_in_the_same_edge else None
 
-            if distance_to_front_cars:
-                nearest_car = min(distance_to_front_cars)
-            
+            #then get nearest car by performing min() func to the distance of other front cars
             nearest_car = min(distance_to_front_cars) if distance_to_front_cars else None
 
             if not nearest_car or nearest_car > self.car_collision_observe_distance:
