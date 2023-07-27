@@ -23,6 +23,15 @@ child_canvas = tk.Canvas(child, width=500, height=1000)
 child_canvas.pack()
 canvas.pack()    
 
+color_list = [
+    "yellow",
+    "brown",
+    "pink",
+    "fuchsia",
+    "gold",
+    "indian red"
+]
+
 """
 Car Class
 """
@@ -57,7 +66,9 @@ class Car:
 
         self.pos_x = x
         self.pos_y = y
-        self.car = canvas.create_oval(x0, y0, x1, y1, fill="yellow")
+
+        choice_color = random.choice(color_list)
+        self.car = canvas.create_oval(x0, y0, x1, y1, fill=choice_color)
 
     def get_coords(self, xy_only=True):
         x0, y0, x1, y1 = canvas.coords(self.car)
@@ -302,7 +313,7 @@ class TrafficManager():
                     color_state = "green"
 
                     # TODO: Change this back to 3 once its fixed
-                    if index % 3 == 0: #alternate light states between nodes
+                    if index % 2 == 0: #alternate light states between nodes
                         color_state = "red"
                     self.intersection_states[n][neighbor] = {
                         "color": color_state,
@@ -341,13 +352,15 @@ class TrafficManager():
             raise KeyError(f"Cannot find the edge {(origin, destination)} or {(destination,origin)}")
         
     def get_cars_in_edge(self, origin, destination) -> list[Car]:
-        orientation = None
-        cars_in_edge = None
-        if any(((origin, destination) in self.edges.keys(), (destination, origin) in self.edges.keys())):
-            orientation = (origin, destination) if (origin, destination) in self.edges.keys() else (destination, origin)
-            cars_in_edge = self.edges[orientation]['cars_occupied'].copy() #shallow copy as we don't want to alter original list of cars
+        orientation = (origin, destination)
+        # cars_in_edge = None
+        # if any(((origin, destination) in self.edges.keys(), (destination, origin) in self.edges.keys())):
+        #     orientation = (origin, destination) if (origin, destination) in self.edges.keys() else (destination, origin)
+        #     cars_in_edge = self.edges[orientation]['cars_occupied'].copy() #shallow copy as we don't want to alter original list of cars
 
-        return cars_in_edge
+        # cars_in_edge = self.edges[orientation]['cars_occupied'].copy()
+
+        return self.edges[orientation]['cars_occupied'].copy()
 
     def __draw_intersection__(self, x, y, index=None, offset=5, color="blue"):
         """
@@ -421,16 +434,16 @@ def car_spawn_task(env):
                 origin = edge_choice[0]
                 next_immediate_destination = edge_choice[1]
 
+                # TEMPORARY
                 if origin == "E1":
                     final_destination = 6
                 elif origin == "E2":
                     final_destination = 8
-                # if canvas_index % 2 == 0:
-                #     final_destination = 6
+
                 each_car.spawn(origin, next_immediate_destination, final_destination)
 
                 #generate text widget
-                text_log = child_canvas.create_text(0, y_offset * canvas_index, anchor='nw', text="FUCK")
+                text_log = child_canvas.create_text(0, y_offset * canvas_index + 10, anchor='nw', text="FUCK")
                 logs[each_car.index] = text_log
 
             yield env.timeout(spawn_delay)
@@ -445,6 +458,8 @@ def car_task(env):
             else:
                 message_log = f"""
                 Car: {each_car.index}
+                    origin: {each_car.origin_node}
+                    dest: {each_car.next_destination_node}
                     distance_to_other_cars: {each_car.cars_in_front}
                 """ 
                 child_canvas.itemconfigure(logs[each_car.index], text=message_log)
