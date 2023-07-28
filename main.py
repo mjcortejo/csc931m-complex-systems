@@ -24,13 +24,39 @@ child_canvas.pack()
 canvas.pack()    
 
 color_list = [
-    "yellow",
-    "brown",
-    "pink",
-    "fuchsia",
-    "gold",
-    "indian red"
+    "snow",
+    "ghost white",
+    "gainsboro",
+    "old lace",
+    "linen",
+    "antique white",
+    "papaya whip",
+    "blanched almond",
+    "bisque",
+    "peach puff",
+    "navajo white",
+    "lemon chiffon",
+    "mint cream",
+    "azure",
+    "alice blue",
+    "lavender",
+    "lavender blush",
+    "misty rose",
+    "turquoise", 
+    "aquamarine", 
+    "powder blue", 
+    "sky blue", 
+    "steel blue", 
+    "cadet blue", 
+    "deep sky blue", 
+    "dodger blue", 
+    "cornflower blue", 
+    "medium aquamarine", 
+    "medium turquoise", 
+    "light sea green", 
+    "medium sea green"
 ]
+
 
 """
 Car Class
@@ -409,7 +435,7 @@ tm = TrafficManager()
 """
 Draw cars in the grid, and assign their origin and destination
 """
-number_of_cars = 6
+number_of_cars = 10
 cars = []
 
 #create a text canvas widget
