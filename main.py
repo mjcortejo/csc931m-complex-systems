@@ -115,7 +115,8 @@ class Car:
         """
         Compute the car agent's shortest path using NetworkX's shortest_path function (default: Djikstra)
         """        
-        paths = nx.shortest_path(tm.G, self.origin_node, self.final_destination_node)
+        # edge_weight = tm.get_edge_weight(self.origin_node, self.final_destination_node)
+        paths = nx.shortest_path(tm.G, self.origin_node, self.final_destination_node, weight='weight')
         print(f"Car {self.index} from origin: {self.origin_node} paths: {paths}")
         self.node_paths = iter(paths[1:]) #ommitting first index, since it is already the origin
         self.next_destination_node = next(self.node_paths)
@@ -282,7 +283,7 @@ class TrafficManager():
          Builds the network
         """
 
-        self.edges = {i: {'cars_occupied': [], 'has_accident': False, 'road_speed': 50, 'one_way': False} for i in self.edge_list}
+        self.edges = {i: {'cars_occupied': [], 'weight': 0} for i in self.edge_list}
         # self.edges = {}
 
         # for i in self.edge_list:
@@ -305,6 +306,7 @@ class TrafficManager():
                 self.entry_edges.append(edges)
 
                 #add the inverse edge of the E's as well
+                self.edges[(edges[1], edges[0])] = {'cars_occupied': [], 'weight': 0}
                 self.G.add_edge(edges[1], edges[0])
 
 
@@ -315,8 +317,8 @@ class TrafficManager():
             # Apply intersection light states between nodes
             if self.G.in_degree[n] > 2: #check if node has more than 2 neighbors then apply intersection light states
 
-                if n == 19:
-                    print("HELLO")
+                # if n == 19:
+                #     print("HELLO")
                 neighbor_nodes = list(self.G.neighbors(n))
                 self.intersection_states[n] = {}
                 # This function is used to generate a dictionary of light states between nodes and neighbors
@@ -354,13 +356,22 @@ class TrafficManager():
         if orientation:
             if how == "add":
                 self.edges[orientation]['cars_occupied'].append(car_object)
-                print(f"Added {car_object.index} to {orientation}")
+                # print(f"Added {car_object.index} to {orientation}")
             elif how == "remove":
                 self.edges[orientation]['cars_occupied'].remove(car_object)
-                print(f"Removing {car_object.index} to {orientation}")
+                # print(f"Removing {car_object.index} to {orientation}")
             else: raise Exception("Invalid 'how' value, must be 'add' or 'remove'")
+
+            # Dynamic Weighting mechanism
+            cars_occupied = len(self.edges[orientation]['cars_occupied'])
+            self.edges[orientation]['weight'] = cars_occupied
+            print(f"Adjusting weight of {orientation} to {self.edges[orientation]['weight']}")
         else:
             raise KeyError(f"Cannot find the edge {(origin, destination)} or {(destination,origin)}")
+
+    # def get_edge_weight(self, origin, destination) -> int:
+    #     orientation = (origin, destination)
+    #     return self.edges[orientation]['weight']
         
     def get_cars_in_edge(self, origin, destination) -> list[Car]:
         orientation = (origin, destination)
@@ -455,7 +466,9 @@ def bgc_layout():
 
     #('E2', 1)
     edge_list = [
+        #Entry nodes
         ('E1', 6),('E2', 7),('E3', 19),('E4', 24),
+        #Proper nodes
         (1, 2),(1, 8),(1, 7),
         (2, 1),(2, 3),(2, 9),
         (3, 2),(3, 4),(3, 10),
@@ -490,7 +503,7 @@ tm = TrafficManager(intersection_nodes, edge_list)
 """
 Draw cars in the grid, and assign their origin and destination
 """
-number_of_cars = 50
+number_of_cars = 20
 cars = []
 
 #create a text canvas widget
@@ -502,7 +515,7 @@ for index in range(number_of_cars):
     car = Car(index)
     cars.append(car)
 
-spawn_delay = 50
+spawn_delay = 10
 y_offset = 50
 
 def car_spawn_task(env):
@@ -517,13 +530,13 @@ def car_spawn_task(env):
 
                 # TEMPORARY
                 if origin == "E1":
-                    final_destination = 19
+                    final_destination = 'E3'
                 elif origin == "E2":
-                    final_destination = 23
+                    final_destination = 'E4'
                 elif origin == "E3":
-                    final_destination = 5
+                    final_destination = 'E1'
                 elif origin == "E4":
-                    final_destination = 1
+                    final_destination = 'E2'
 
                 each_car.spawn(origin, next_immediate_destination, final_destination)
 
