@@ -453,8 +453,6 @@ def bgc_layout():
         24: (600, 375)
     }
 
-    #use a real layout like EDSA or Ayala or BGC
-
     #('E2', 1)
     edge_list = [
         ('E1', 6),('E2', 7),('E3', 19),('E4', 24),
@@ -492,7 +490,7 @@ tm = TrafficManager(intersection_nodes, edge_list)
 """
 Draw cars in the grid, and assign their origin and destination
 """
-number_of_cars = 1
+number_of_cars = 50
 cars = []
 
 #create a text canvas widget
@@ -530,7 +528,7 @@ def car_spawn_task(env):
                 each_car.spawn(origin, next_immediate_destination, final_destination)
 
                 #generate text widget
-                text_log = child_canvas.create_text(0, y_offset * canvas_index + 10, anchor='nw', text="FUCK")
+                text_log = child_canvas.create_text(0, y_offset * canvas_index + 10, anchor='nw', text="START")
                 logs[each_car.index] = text_log
 
             yield env.timeout(spawn_delay)
