@@ -7,6 +7,8 @@ import networkx as nx
 import threading
 import numpy as np
 
+from concurrent.futures import ThreadPoolExecutor
+
 random.seed(27)
 
 """
@@ -503,7 +505,7 @@ tm = TrafficManager(intersection_nodes, edge_list)
 """
 Draw cars in the grid, and assign their origin and destination
 """
-number_of_cars = 20
+number_of_cars = 500
 cars = []
 
 #create a text canvas widget
@@ -547,25 +549,30 @@ def car_spawn_task(env):
             yield env.timeout(spawn_delay)
          
 car_task_delay = 1
+def car_movement_logic(each_car):
+    if not each_car.is_spawned:
+        # Wait for spawn
+        pass
+    else:
+        message_log = f"""
+        Car: {each_car.index}
+            origin: {each_car.origin_node}
+            dest: {each_car.next_destination_node}
+            distance_to_other_cars: {each_car.cars_in_front}
+        """ 
+        child_canvas.itemconfigure(logs[each_car.index], text=message_log)
+        each_car.travel()
+
 def car_task(env):
     while True:
-        for index, each_car in enumerate(cars):
-            if not each_car.is_spawned:
-                #wait for spawn
-                pass
-            else:
-                message_log = f"""
-                Car: {each_car.index}
-                    origin: {each_car.origin_node}
-                    dest: {each_car.next_destination_node}
-                    distance_to_other_cars: {each_car.cars_in_front}
-                """ 
-                child_canvas.itemconfigure(logs[each_car.index], text=message_log)
-                each_car.travel()
-            
-            if each_car.arrived:
-                each_car.remove_car()
-                cars.pop(index)
+        # Create a ThreadPoolExecutor with the desired number of threads
+        with ThreadPoolExecutor(max_workers=8) as executor:  # You can adjust max_workers based on the number of cars and available resources
+            # Execute the car_movement_logic for each car concurrently in multiple threads
+            executor.map(car_movement_logic, cars)
+
+        # Remove completed cars
+        cars[:] = [each_car for each_car in cars if not each_car.arrived]
+
         yield env.timeout(car_task_delay)
 
 def traffic_manager_task(env):
@@ -576,13 +583,14 @@ def traffic_manager_task(env):
                     tm.change_light_state(each_intersection, each_neighbor)
                 tm.intersection_states[each_intersection][each_neighbor]["timer"] -= 1
         yield env.timeout(1)
+
 fps = 60
+
 def run():
-    env = simpy.rt.RealtimeEnvironment(factor=1/60, strict = False)
+    env = simpy.rt.RealtimeEnvironment(factor=1/60, strict=False)
     env.process(car_spawn_task(env))
     env.process(car_task(env))
     env.process(traffic_manager_task(env))
-    # env.process(car_log(env))
     env.run()
 
 thread = threading.Thread(target=run)
