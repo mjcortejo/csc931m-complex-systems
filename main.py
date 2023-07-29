@@ -24,13 +24,39 @@ child_canvas.pack()
 canvas.pack()    
 
 color_list = [
-    "yellow",
-    "brown",
-    "pink",
-    "fuchsia",
-    "gold",
-    "indian red"
+    "snow",
+    "ghost white",
+    "gainsboro",
+    "old lace",
+    "linen",
+    "antique white",
+    "papaya whip",
+    "blanched almond",
+    "bisque",
+    "peach puff",
+    "navajo white",
+    "lemon chiffon",
+    "mint cream",
+    "azure",
+    "alice blue",
+    "lavender",
+    "lavender blush",
+    "misty rose",
+    "turquoise", 
+    "aquamarine", 
+    "powder blue", 
+    "sky blue", 
+    "steel blue", 
+    "cadet blue", 
+    "deep sky blue", 
+    "dodger blue", 
+    "cornflower blue", 
+    "medium aquamarine", 
+    "medium turquoise", 
+    "light sea green", 
+    "medium sea green"
 ]
+
 
 """
 Car Class
@@ -195,10 +221,10 @@ class Car:
 Create network graph representation
 """
 class TrafficManager():
-    def __init__(self):
+    def __init__(self, intersection_nodes = {}, edge_list = []):
         self.G = nx.DiGraph()
-        self.intersection_nodes = {}
-        self.edge_list = []
+        self.intersection_nodes = intersection_nodes
+        self.edge_list = edge_list
         self.edges = None
         self.intersection_states = {}
         self.intersection_radius = 4
@@ -233,6 +259,10 @@ class TrafficManager():
          
          @return The light state of the neighboring node in the color
         """
+
+        # if neighboring_node == "E3":
+        #     print("ASD")
+
         return self.intersection_states[intersection_node][neighboring_node]["color"]
     
     def destination_has_intersection(self, intersection_node):
@@ -251,38 +281,13 @@ class TrafficManager():
         """
          Builds the network
         """
-        self.intersection_nodes = {
-            #ENTRY NODES
-            'E1': (200, 50), #just above Node 2
-            'E2': (350, 200), #just right of Node 6
-            #PROPER NODES
-            1: (100, 100),
-            2: (200, 100),
-            3: (300, 100),
-            4: (100, 200),
-            5: (200, 200),
-            6: (300, 200),
-            7: (100, 300),
-            8: (200, 300),
-            9: (300, 300)
-        }
 
-        #use a real layout like EDSA or Ayala or BGC
-        self.edge_list = [
-            ('E1', 2),
-            ('E2', 6),
-            (2, 5),
-            (4, 5),
-            (5, 6),
-            (5, 8),
-        ]
+        self.edges = {i: {'cars_occupied': [], 'has_accident': False, 'road_speed': 50, 'one_way': False} for i in self.edge_list}
+        # self.edges = {}
 
-        # self.edges = {i: {'cars_occupied': [], 'has_accident': False, 'road_speed': 50, 'one_way': False} for i in self.edge_list}
-        self.edges = {}
-
-        for i in self.edge_list:
-            self.edges[(i[0], i[1])] = {'cars_occupied': [], 'has_accident': False, 'road_speed': 50, 'one_way': False}
-            self.edges[(i[1], i[0])] = {'cars_occupied': [], 'has_accident': False, 'road_speed': 50, 'one_way': False}
+        # for i in self.edge_list:
+        #     self.edges[(i[0], i[1])] = {'cars_occupied': [], 'has_accident': False, 'road_speed': 50, 'one_way': False}
+        #     self.edges[(i[1], i[0])] = {'cars_occupied': [], 'has_accident': False, 'road_speed': 50, 'one_way': False}
 
         # Add a node to the graph.
         for index, pos in self.intersection_nodes.items():
@@ -294,18 +299,24 @@ class TrafficManager():
         # Add edges to the graph.
         for edges in self.edge_list:
             # Add edges to the entry edges list
+            self.G.add_edge(edges[0], edges[1])
             if any(isinstance(edge, str) for edge in edges) and any("E" in edge for edge in edges):
                 #for now we will assume that the entry edge is at the first element
                 self.entry_edges.append(edges)
 
-            self.G.add_edge(edges[0], edges[1])
-            self.G.add_edge(edges[1], edges[0])
+                #add the inverse edge of the E's as well
+                self.G.add_edge(edges[1], edges[0])
+
+
 
         # Loop all nodes and check which nodes have more than 2 edges, and apply intersection states for each edge
         for n in self.G:
             # print(f"G Degree of {n}: {self.G.degree[n]}")
             # Apply intersection light states between nodes
             if self.G.in_degree[n] > 2: #check if node has more than 2 neighbors then apply intersection light states
+
+                if n == 19:
+                    print("HELLO")
                 neighbor_nodes = list(self.G.neighbors(n))
                 self.intersection_states[n] = {}
                 # This function is used to generate a dictionary of light states between nodes and neighbors
@@ -404,12 +415,82 @@ class TrafficManager():
             # Render the lane
             canvas.create_line(start_x, start_y, end_x, end_y, width=lane_width)
 
-tm = TrafficManager()
+def bgc_layout():
+    intersection_nodes = {
+        #ENTRY NODES
+        'E1': (600, 80), 
+        'E2': (50, 50), 
+        'E3': (100, 350),
+        'E4': (650, 500),
+        #PROPER NODES
+        # 1st BGC parallel nodes
+        1: (100, 100),
+        2: (200, 100),
+        3: (300, 100),
+        4: (400, 100),
+        5: (500, 100),
+        6: (600, 125),
+        # 2nd Parallel nodes
+        7: (50, 200),
+        8: (100, 200),
+        9: (200, 150),
+        10: (300, 150),
+        11: (400, 150),
+        12: (500, 150),
+        # 3rd Parallel Nodes
+        13: (50, 300),
+        14: (100, 300),
+        15: (200, 350),
+        16: (300, 350),
+        17: (400, 350),
+        18: (500, 350),
+        # 4th Parallel Nodes
+        19: (100, 300),
+        20: (200, 300),
+        21: (300, 300),
+        22: (400, 300),
+        23: (500, 300),
+        24: (600, 375)
+    }
+
+    #('E2', 1)
+    edge_list = [
+        ('E1', 6),('E2', 7),('E3', 19),('E4', 24),
+        (1, 2),(1, 8),(1, 7),
+        (2, 1),(2, 3),(2, 9),
+        (3, 2),(3, 4),(3, 10),
+        (4, 3),(4, 5),(4, 11),
+        (5, 4),(5, 6),(5, 12),
+        (6, 5),(6, 24),
+        (7, 1),(7, 8),(7, 13),
+        (8, 1),(8, 7),(8, 9),(8, 14),
+        (9, 2),(9, 8),(9, 10),(9, 15),
+        (10, 3),(10, 9),(10, 11),(10, 16),
+        (11, 4),(11, 10),(11, 12),(11, 17),
+        (12, 5),(12, 11),(12, 18),
+        (13, 7),(13, 14),(13, 19),
+        (14, 8),(14, 13),(14, 15),(14, 19),
+        (15, 9),(15, 14),(15, 16),(15, 20),
+        (16, 10),(16, 15),(16, 17),(16, 21),
+        (17, 11),(17, 16),(17, 18),(17, 22),
+        (18, 12),(18, 17),(18, 23),
+        (19, 13),(19, 14),(19, 20),
+        (20, 15),(20, 19),(20, 21),
+        (21, 16),(21, 20),(21, 22),
+        (22, 17),(22, 21),(22, 23),
+        (23, 18),(23, 22),(23, 24),
+        (24, 6),(24, 23)
+    ]
+
+    return intersection_nodes, edge_list
+
+intersection_nodes, edge_list = bgc_layout()
+tm = TrafficManager(intersection_nodes, edge_list)
 
 """
 Draw cars in the grid, and assign their origin and destination
 """
-number_of_cars = 6
+number_of_cars = 50
 cars = []
 
 #create a text canvas widget
@@ -436,14 +517,18 @@ def car_spawn_task(env):
 
                 # TEMPORARY
                 if origin == "E1":
-                    final_destination = 6
+                    final_destination = 19
                 elif origin == "E2":
-                    final_destination = 8
+                    final_destination = 23
+                elif origin == "E3":
+                    final_destination = 5
+                elif origin == "E4":
+                    final_destination = 1
 
                 each_car.spawn(origin, next_immediate_destination, final_destination)
 
                 #generate text widget
-                text_log = child_canvas.create_text(0, y_offset * canvas_index + 10, anchor='nw', text="FUCK")
+                text_log = child_canvas.create_text(0, y_offset * canvas_index + 10, anchor='nw', text="START")
                 logs[each_car.index] = text_log
 
             yield env.timeout(spawn_delay)
