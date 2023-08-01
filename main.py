@@ -22,7 +22,7 @@ child = tk.Toplevel()
 canvas = tk.Canvas(root, width=800, height=600)
 child_canvas = tk.Canvas(child, width=500, height=1000)
 
-child_canvas.pack()
+# child_canvas.pack()
 canvas.pack()    
 
 color_list = [
@@ -74,7 +74,7 @@ class Car:
         self.next_destination_node = None
         self.final_destination_node = None
 
-        self.speed = 1
+        self.speed = .3
         self.car = None
         self.car_radius = 3
         self.arrived = False
@@ -82,7 +82,7 @@ class Car:
         self.is_spawned = False
 
         self.light_observation_distance = 5
-        self.car_collision_observe_distance = 10
+        self.car_collision_observe_distance = 8
         
         self.cars_in_front = None
     
@@ -122,7 +122,6 @@ class Car:
         print(f"Car {self.index} from origin: {self.origin_node} paths: {paths}")
         self.node_paths = iter(paths[1:]) #ommitting first index, since it is already the origin
         self.next_destination_node = next(self.node_paths)
-        tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="add")
 
     def spawn(self, origin, next_immediate_destination, final_destination):
         """
@@ -138,6 +137,7 @@ class Car:
         self.place_car(p1[0], p1[1])
         self.set_destination(final_destination) #p2 is x and y respectively
         self.compute_shortest_path()
+        tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="add")
         self.is_spawned = True
 
     def travel(self):
@@ -196,7 +196,10 @@ class Car:
 
                 print(f"Car {self.index} now heading to {self.next_destination_node} from {self.origin_node}")
                 self.origin_node = self.next_destination_node
-                self.next_destination_node = next(self.node_paths)
+
+                # place recomputation of shortest path here
+                self.compute_shortest_path()
+                # self.next_destination_node = next(self.node_paths)
 
                 tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="add")
 
@@ -231,7 +234,7 @@ class TrafficManager():
         self.edges = None
         self.intersection_states = {}
         self.intersection_radius = 4
-        self.default_intersection_time = 500
+        self.default_intersection_time = 300
 
         self.entry_nodes = []
         self.entry_edges = []
@@ -262,9 +265,6 @@ class TrafficManager():
          
          @return The light state of the neighboring node in the color
         """
-
-        # if neighboring_node == "E3":
-        #     print("ASD")
 
         return self.intersection_states[intersection_node][neighboring_node]["color"]
     
@@ -366,7 +366,7 @@ class TrafficManager():
 
             # Dynamic Weighting mechanism
             cars_occupied = len(self.edges[orientation]['cars_occupied'])
-            self.edges[orientation]['weight'] = cars_occupied
+            self.edges[orientation]['weight'] = cars_occupied * 2
             print(f"Adjusting weight of {orientation} to {self.edges[orientation]['weight']}")
         else:
             raise KeyError(f"Cannot find the edge {(origin, destination)} or {(destination,origin)}")
@@ -554,19 +554,19 @@ def car_movement_logic(each_car):
         # Wait for spawn
         pass
     else:
-        message_log = f"""
-        Car: {each_car.index}
-            origin: {each_car.origin_node}
-            dest: {each_car.next_destination_node}
-            distance_to_other_cars: {each_car.cars_in_front}
-        """ 
-        child_canvas.itemconfigure(logs[each_car.index], text=message_log)
+        # message_log = f"""
+        # Car: {each_car.index}
+        #     origin: {each_car.origin_node}
+        #     dest: {each_car.next_destination_node}
+        #     distance_to_other_cars: {each_car.cars_in_front}
+        # """ 
+        # child_canvas.itemconfigure(logs[each_car.index], text=message_log)
         each_car.travel()
 
 def car_task(env):
     while True:
         # Create a ThreadPoolExecutor with the desired number of threads
-        with ThreadPoolExecutor(max_workers=8) as executor:  # You can adjust max_workers based on the number of cars and available resources
+        with ThreadPoolExecutor(max_workers=32) as executor:  # You can adjust max_workers based on the number of cars and available resources
             # Execute the car_movement_logic for each car concurrently in multiple threads
             executor.map(car_movement_logic, cars)
 
