@@ -118,7 +118,8 @@ class Car:
         Compute the car agent's shortest path using NetworkX's shortest_path function (default: Djikstra)
         """        
         # edge_weight = tm.get_edge_weight(self.origin_node, self.final_destination_node)
-        paths = nx.shortest_path(tm.G, self.origin_node, self.final_destination_node, weight='weight')
+        # paths = nx.shortest_path(tm.G, self.origin_node, self.final_destination_node, weight='weight')
+        paths = nx.dijkstra_path(tm.G, self.origin_node, self.final_destination_node, weight='weight')
         print(f"Car {self.index} from origin: {self.origin_node} paths: {paths}")
         self.node_paths = iter(paths[1:]) #ommitting first index, since it is already the origin
         self.next_destination_node = next(self.node_paths)
@@ -566,7 +567,7 @@ def car_movement_logic(each_car):
 def car_task(env):
     while True:
         # Create a ThreadPoolExecutor with the desired number of threads
-        with ThreadPoolExecutor(max_workers=32) as executor:  # You can adjust max_workers based on the number of cars and available resources
+        with ThreadPoolExecutor(max_workers=64) as executor:  # You can adjust max_workers based on the number of cars and available resources
             # Execute the car_movement_logic for each car concurrently in multiple threads
             executor.map(car_movement_logic, cars)
 
