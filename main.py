@@ -296,7 +296,7 @@ class TrafficManager():
         # Add a node to the graph.
         for index, pos in self.intersection_nodes.items():
             # Add index to the list of entries in the entry_nodes list.
-            if type(index) == str and "E" in index:
+            if "E" in str(index) or "P" in str(index):
                 self.entry_nodes.append(index)
             self.G.add_node(index, pos=pos)
 
@@ -304,14 +304,20 @@ class TrafficManager():
         for edges in self.edge_list:
             # Add edges to the entry edges list
             self.G.add_edge(edges[0], edges[1])
-            if any(isinstance(edge, str) for edge in edges) and any("E" in edge for edge in edges):
+            if any("E" in str(edge) for edge in edges):
                 #for now we will assume that the entry edge is at the first element
                 self.entry_edges.append(edges)
 
                 #add the inverse edge of the E's as well
                 self.edges[(edges[1], edges[0])] = {'cars_occupied': [], 'weight': 0}
                 self.G.add_edge(edges[1], edges[0])
+            elif any("P" in str(edge) for edge in edges):
+                if "P" in str(edges[0]): #this one is more likely to happen for now
+                    self.entry_edges.append((edges[0], edges[1]))
 
+                    #add the inverse edge of the P's as well
+                    self.edges[(edges[1], edges[0])] = {'cars_occupied': [], 'weight': 0}
+                    self.G.add_edge(edges[1], edges[0])
 
 
         # Loop all nodes and check which nodes have more than 2 edges, and apply intersection states for each edge
@@ -347,12 +353,6 @@ class TrafficManager():
     def manage_car_from_edge(self, car_object: Car, origin: int, destination: int, how: str):
         orientation = (origin, destination)
 
-        # Example tuple (1, 2) Where 1 is how it is placed in the edges list originally and 2 is the immediate destination
-        # And a instance where an agent is going from (2, 1) we still want to recognize this as (1, 2) as it was defined in the edges list
-        # This is what this function does by switching its orientation if this instance happens to be happening
-        # if any(((origin, destination) in self.edges.keys(), (destination, origin) in self.edges.keys())):
-        #     orientation = (origin, destination) if (origin, destination) in self.edges.keys() else (destination, origin)
-
         if orientation:
             if how == "add":
                 self.edges[orientation]['cars_occupied'].append(car_object)
@@ -375,13 +375,6 @@ class TrafficManager():
         
     def get_cars_in_edge(self, origin, destination) -> list[Car]:
         orientation = (origin, destination)
-        # cars_in_edge = None
-        # if any(((origin, destination) in self.edges.keys(), (destination, origin) in self.edges.keys())):
-        #     orientation = (origin, destination) if (origin, destination) in self.edges.keys() else (destination, origin)
-        #     cars_in_edge = self.edges[orientation]['cars_occupied'].copy() #shallow copy as we don't want to alter original list of cars
-
-        # cars_in_edge = self.edges[orientation]['cars_occupied'].copy()
-
         return self.edges[orientation]['cars_occupied'].copy()
 
     def __draw_intersection__(self, x, y, index=None, offset=5, color="blue"):
@@ -434,8 +427,13 @@ def bgc_layout():
         'E3': (100, 500),
         'E4': (650, 500),
         #PARKING NODES
-        'P1': (600, 400),
-        # 'P2': 
+        'P1': (150, 125),
+        'P2': (450, 200),
+        'P3': (350, 375),
+        # CONNECTOR NODES (these are used to connect to parking nodes)
+        'C1': (200, 125),
+        'C2': (450, 150),
+        'C3': (400, 375),
         #PROPER NODES
         # 1st BGC parallel nodes
         1: (100, 100),
@@ -469,11 +467,19 @@ def bgc_layout():
 
     #('E2', 1)
     edge_list = [
+        # Important: Current rules for placing edges.
+        # 1. For Entry (E) nodes, they must be placed first for each of the tuples
+        # 2. For Parking (P) nodes, they must be placed first for each of the tuples
+        # 3. //TODO something about connectors only connected to one direction
         #Entry nodes
         ('E1', 6),('E2', 7),('E3', 19),('E4', 24),
+        #Parking and connector nodes,
+        ('P1', 'C1'), (2, 'C1') , ('C1', 9),
+        ('P2', 'C2'), (11, 'C2') , ('C2', 12),
+        ('P3', 'C3'), (17, 'C3'), ('C3', 22),
         #Proper nodes
         (1, 2),(1, 8),(1, 7),
-        (2, 1),(2, 3),(2, 9),
+        (2, 1),(2, 3),# (2, 9),
         (3, 2),(3, 4),(3, 10),
         (4, 3),(4, 5),(4, 11),
         (5, 4),(5, 6),(5, 12),
@@ -482,13 +488,13 @@ def bgc_layout():
         (8, 1),(8, 7),(8, 9),(8, 14),
         (9, 2),(9, 8),(9, 10),(9, 15),
         (10, 3),(10, 9),(10, 11),(10, 16),
-        (11, 4),(11, 10),(11, 12),(11, 17),
+        (11, 4),(11, 10),(11, 17), #(11, 12),
         (12, 5),(12, 11),(12, 18),
         (13, 7),(13, 14),(13, 19),
         (14, 8),(14, 13),(14, 15),(14, 19),
         (15, 9),(15, 14),(15, 16),(15, 20),
         (16, 10),(16, 15),(16, 17),(16, 21),
-        (17, 11),(17, 16),(17, 18),(17, 22),
+        (17, 11),(17, 16),(17, 18), #(17, 22),
         (18, 12),(18, 17),(18, 23),
         (19, 13),(19, 14),(19, 20),
         (20, 15),(20, 19),(20, 21),
@@ -521,6 +527,11 @@ for index in range(number_of_cars):
 spawn_delay = 10
 y_offset = 50
 
+# spawn_destination_map = {
+#     "E1": ["E3", "P1", "P2", "P3"]
+# }
+
+
 def car_spawn_task(env):
     global canvas_index
     while True:
@@ -530,16 +541,23 @@ def car_spawn_task(env):
                 edge_choice = list(random.choice(list(tm.entry_edges)))
                 origin = edge_choice[0]
                 next_immediate_destination = edge_choice[1]
+                
+                entry_nodes = list(tm.entry_nodes)
+                print(f"Entry nodes {entry_nodes}")
+                print(f"Origin {origin}")
+                entry_nodes.remove(origin)
 
-                # TEMPORARY
-                if origin == "E1":
-                    final_destination = 'E3'
-                elif origin == "E2":
-                    final_destination = 'E4'
-                elif origin == "E3":
-                    final_destination = 'E1'
-                elif origin == "E4":
-                    final_destination = 'E2'
+                final_destination = random.choice(entry_nodes)
+
+                # # TEMPORARY
+                # if origin == "E1":
+                #     final_destination = 'E3'
+                # elif origin == "E2":
+                #     final_destination = 'E4'
+                # elif origin == "E3":
+                #     final_destination = 'E1'
+                # elif origin == "E4":
+                #     final_destination = 'E2'
 
                 each_car.spawn(origin, next_immediate_destination, final_destination)
 
