@@ -148,12 +148,11 @@ class Car:
         self.next_destination_node = next(self.node_paths)
     
 
-    def spawn(self, origin, next_immediate_destination, final_destination):
+    def spawn(self, origin, final_destination):
         """
          Spawn car at the origin node (usually an entry node).
          
          @param origin - origin of car to spawn
-         @param next_immediate_destination - next destination of car to spawn
          @param final_destination - final destination of car to spawn
         """
         p1 = tm.intersection_nodes[origin]
@@ -220,11 +219,6 @@ class Car:
                 tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="remove")
 
                 print(f"Car {self.index} now heading to {self.next_destination_node} from {self.origin_node}")
-                # if self.origin_node == 22 and self.next_destination_node == 17:
-                #     print("BREAK POINT")
-
-                if self.origin_node == 'C3' and self.next_destination_node == 22:
-                    print("BREAK OUT")
                 
                 self.last_origin = self.origin_node
                 self.origin_node = self.next_destination_node
@@ -573,7 +567,7 @@ def car_spawn_task(env):
                 canvas_index += 1
                 edge_choice = list(random.choice(list(tm.entry_edges)))
                 origin = edge_choice[0]
-                next_immediate_destination = edge_choice[1]
+                # next_immediate_destination = edge_choice[1]
                 
                 entry_nodes = list(tm.entry_nodes)
                 # print(f"Entry nodes {entry_nodes}")
@@ -583,7 +577,7 @@ def car_spawn_task(env):
 
                 final_destination = random.choice(entry_nodes)
 
-                each_car.spawn(origin, next_immediate_destination, final_destination)
+                each_car.spawn(origin, final_destination)
 
                 #generate text widget
                 text_log = child_canvas.create_text(0, y_offset * canvas_index + 10, anchor='nw', text="START")
@@ -597,13 +591,6 @@ def car_movement_logic(each_car):
         # Wait for spawn
         pass
     else:
-        # message_log = f"""
-        # Car: {each_car.index}
-        #     origin: {each_car.origin_node}
-        #     dest: {each_car.next_destination_node}
-        #     distance_to_other_cars: {each_car.cars_in_front}
-        # """ 
-        # child_canvas.itemconfigure(logs[each_car.index], text=message_log)
         each_car.travel()
 
 def car_task(env):
