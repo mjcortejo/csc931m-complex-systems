@@ -70,6 +70,8 @@ class Car:
         self.pos_y = None
 
         self.origin_node = None
+        self.last_origin = None
+
         self.node_paths = None
         self.next_destination_node = None
         self.final_destination_node = None
@@ -113,6 +115,19 @@ class Car:
         
         canvas.coords(self.car, x0, y0, x1, y1)
 
+    def __check_subsequence__(self, paths):
+        paths_to_check = paths.copy()
+
+        if self.last_origin is not None:
+            paths_to_check.insert(0, self.last_origin)
+        for sequence, node_to_remove in tm.disallowed_sequences.items():
+            sequence = list(sequence)
+            n = len(sequence)
+            for i in range(len(paths_to_check)):
+                if paths_to_check[i:i+n] == sequence:
+                    return True, node_to_remove
+            return False, None
+
     def compute_shortest_path(self):
         """
         Compute the car agent's shortest path using NetworkX's shortest_path function (default: Djikstra)
@@ -120,9 +135,18 @@ class Car:
         # edge_weight = tm.get_edge_weight(self.origin_node, self.final_destination_node)
         # paths = nx.shortest_path(tm.G, self.origin_node, self.final_destination_node, weight='weight')
         paths = nx.dijkstra_path(tm.G, self.origin_node, self.final_destination_node, weight='weight')
-        print(f"Car {self.index} from origin: {self.origin_node} paths: {paths}")
+
+        is_illegal_path, node_to_remove = self.__check_subsequence__(paths)
+        if is_illegal_path:
+            temp_G = tm.G.copy()
+            temp_G.remove_node(node_to_remove)
+            paths = nx.dijkstra_path(temp_G, self.origin_node, self.final_destination_node, weight='weight')
+
+        print(f"Car {self.index} from origin: {self.origin_node} paths: {paths[1:]}")
+
         self.node_paths = iter(paths[1:]) #ommitting first index, since it is already the origin
         self.next_destination_node = next(self.node_paths)
+    
 
     def spawn(self, origin, next_immediate_destination, final_destination):
         """
@@ -196,6 +220,13 @@ class Car:
                 tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="remove")
 
                 print(f"Car {self.index} now heading to {self.next_destination_node} from {self.origin_node}")
+                # if self.origin_node == 22 and self.next_destination_node == 17:
+                #     print("BREAK POINT")
+
+                if self.origin_node == 'C3' and self.next_destination_node == 22:
+                    print("BREAK OUT")
+                
+                self.last_origin = self.origin_node
                 self.origin_node = self.next_destination_node
 
                 # place recomputation of shortest path here
@@ -228,10 +259,11 @@ class Car:
 Create network graph representation
 """
 class TrafficManager():
-    def __init__(self, intersection_nodes = {}, edge_list = []):
+    def __init__(self, intersection_nodes = {}, edge_list = [], disallowed_sequences={}):
         self.G = nx.DiGraph()
         self.intersection_nodes = intersection_nodes
         self.edge_list = edge_list
+        self.disallowed_sequences = disallowed_sequences
         self.edges = None
         self.intersection_states = {}
         self.intersection_radius = 4
@@ -471,7 +503,7 @@ def bgc_layout():
         # 1. For Entry (E) nodes, they must be placed first for each of the tuples
         # 2. For Parking (P) nodes, they must be placed first for each of the tuples
         # 3. //TODO something about connectors only connected to one direction
-        #Entry nodes
+        #Entry nodesz
         ('E1', 6),('E2', 7),('E3', 19),('E4', 24),
         #Parking and connector nodes,
         ('P1', 'C1'), (2, 'C1') , ('C1', 9),
@@ -504,10 +536,16 @@ def bgc_layout():
         (24, 6),(24, 23)
     ]
 
-    return intersection_nodes, edge_list
+    disallowed_sequences = {
+        ('C3', 22, 17): 17,
+        ('C1', 9, 2): 2,
+        ('C2', 12, 11): 11,
+    }
 
-intersection_nodes, edge_list = bgc_layout()
-tm = TrafficManager(intersection_nodes, edge_list)
+    return intersection_nodes, edge_list, disallowed_sequences
+
+intersection_nodes, edge_list, disallowed_sequences = bgc_layout()
+tm = TrafficManager(intersection_nodes, edge_list, disallowed_sequences)
 
 """
 Draw cars in the grid, and assign their origin and destination
@@ -527,11 +565,6 @@ for index in range(number_of_cars):
 spawn_delay = 10
 y_offset = 50
 
-# spawn_destination_map = {
-#     "E1": ["E3", "P1", "P2", "P3"]
-# }
-
-
 def car_spawn_task(env):
     global canvas_index
     while True:
@@ -543,21 +576,12 @@ def car_spawn_task(env):
                 next_immediate_destination = edge_choice[1]
                 
                 entry_nodes = list(tm.entry_nodes)
-                print(f"Entry nodes {entry_nodes}")
-                print(f"Origin {origin}")
+                # print(f"Entry nodes {entry_nodes}")
+                # print(f"Origin {origin}")
+
                 entry_nodes.remove(origin)
 
                 final_destination = random.choice(entry_nodes)
-
-                # # TEMPORARY
-                # if origin == "E1":
-                #     final_destination = 'E3'
-                # elif origin == "E2":
-                #     final_destination = 'E4'
-                # elif origin == "E3":
-                #     final_destination = 'E1'
-                # elif origin == "E4":
-                #     final_destination = 'E2'
 
                 each_car.spawn(origin, next_immediate_destination, final_destination)
 
