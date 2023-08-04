@@ -142,8 +142,6 @@ class Car:
             temp_G.remove_node(node_to_remove)
             paths = nx.dijkstra_path(temp_G, self.origin_node, self.final_destination_node, weight='weight')
 
-        print(f"Car {self.index} from origin: {self.origin_node} paths: {paths[1:]}")
-
         self.node_paths = iter(paths[1:]) #ommitting first index, since it is already the origin
         self.next_destination_node = next(self.node_paths)
     
@@ -272,7 +270,6 @@ class TrafficManager():
         self.__build_network__()
 
     def change_light_state(self, intersection_node, neighboring_node, color_state=None, timer=None):
-        #change color state
         # Set color state to red if color is red or red
         if color_state is None:
             if self.intersection_states[intersection_node][neighboring_node]["color"] == "red":
@@ -394,13 +391,9 @@ class TrafficManager():
             # Dynamic Weighting mechanism
             cars_occupied = len(self.edges[orientation]['cars_occupied'])
             self.edges[orientation]['weight'] = cars_occupied * 2
-            print(f"Adjusting weight of {orientation} to {self.edges[orientation]['weight']}")
+            # print(f"Adjusting weight of {orientation} to {self.edges[orientation]['weight']}")
         else:
             raise KeyError(f"Cannot find the edge {(origin, destination)} or {(destination,origin)}")
-
-    # def get_edge_weight(self, origin, destination) -> int:
-    #     orientation = (origin, destination)
-    #     return self.edges[orientation]['weight']
         
     def get_cars_in_edge(self, origin, destination) -> list[Car]:
         orientation = (origin, destination)
@@ -504,8 +497,10 @@ def bgc_layout():
         ('E1', 6),('E2', 7),('E3', 19),('E4', 24),
         #Parking and connector nodes,
         ('P1', 'C1'), (2, 'C1') , ('C1', 9),
-        ('P2', 'C2'), (8, 'C2') , ('C2', 14),
+        ('P2', 'C2'), ('C2', 8), (14, 'C2'),
         ('P3', 'C3'), (22, 'C3'), ('C3', 17), #Gallery Parkade
+        # Removed
+        # (8, 'C2'),('C2', 14),
         #Proper nodes
         (1, 2),(1, 7),
         (2, 1),(2, 3),# (2, 9),
@@ -520,7 +515,7 @@ def bgc_layout():
         (11, 4),(11, 10),
         (12, 5),(12, 11),(12, 18),
         (13, 14),(13, 19),
-        (14, 8),(14, 15),
+        (14, 15),
         (15, 9),(15, 16),(15, 20),
         (16, 17),(16, 21),
         (17, 11),(17, 18),
@@ -544,6 +539,7 @@ def bgc_layout():
     (11, 12),
     (11, 17),
     (13, 7),
+    (14, 8),
     (14, 13),
     (14, 19),
     (15, 14),
@@ -558,8 +554,14 @@ def bgc_layout():
 
     disallowed_sequences = {
         ('C1', 9, 2): 2,
-        ('C2', 12, 11): 11,
-        ('C3', 77, 22): 22,
+        ('C2', 14, 8): 8,
+        ('C3', 17, 22): 22,
+    }
+    
+    parking_capacities = {
+        "P1": 50,
+        "P2": 100,
+        "P3": 100
     }
 
     return intersection_nodes, edge_list, disallowed_sequences
@@ -570,7 +572,7 @@ tm = TrafficManager(intersection_nodes, edge_list, disallowed_sequences)
 """
 Draw cars in the grid, and assign their origin and destination
 """
-number_of_cars = 500
+number_of_cars = 1000
 cars = []
 
 #create a text canvas widget
@@ -582,7 +584,7 @@ for index in range(number_of_cars):
     car = Car(index)
     cars.append(car)
 
-spawn_delay = 10
+spawn_delay = 5
 y_offset = 50
 
 def car_spawn_task(env):
