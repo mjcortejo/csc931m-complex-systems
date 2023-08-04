@@ -233,6 +233,9 @@ class Car:
                 print(f"StopIteration {self.next_destination_node}")
                 self.arrived = True
                 print(f"Car {self.index} has arrived to destination")
+
+                #remove self after execution of final destination
+                self.remove_car()
             
     def set_origin(self, origin):
         """
