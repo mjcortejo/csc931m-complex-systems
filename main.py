@@ -17,10 +17,10 @@ Now drawing the road network using the graph
 
 env = simpy.Environment()
 root = tk.Tk()
-child = tk.Toplevel()
+# child = tk.Toplevel()
 
 canvas = tk.Canvas(root, width=800, height=600)
-child_canvas = tk.Canvas(child, width=500, height=1000)
+# child_canvas = tk.Canvas(child, width=500, height=1000)
 
 # child_canvas.pack()
 canvas.pack()    
@@ -80,6 +80,7 @@ class Car:
         self.car = None
         self.car_radius = 3
         self.arrived = False
+        self.wait_time = 0
 
         self.is_spawned = False
 
@@ -198,6 +199,8 @@ class Car:
                 self.pos_y += (dy / distance) * step
                 self._move_to(self.pos_x, self.pos_y)
 
+
+
         # This method is called when the distance is below the light observation distance threshold.
         if distance > self.light_observation_distance:
             __move()
@@ -207,7 +210,7 @@ class Car:
             if tm.destination_has_intersection(self.next_destination_node):
                 if tm.get_intersection_light_state(self.next_destination_node, self.origin_node) == "red":
                     #do not move if intersection is red
-                    pass
+                    self.wait_time += 1
                 else:
                     __move()
             else:
@@ -226,6 +229,7 @@ class Car:
                 # self.next_destination_node = next(self.node_paths)
 
                 tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="add")
+                self.wait_time = 0;
 
             except StopIteration:
                 print(f"StopIteration {self.next_destination_node}")
