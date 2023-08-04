@@ -76,7 +76,7 @@ class Car:
         self.next_destination_node = None
         self.final_destination_node = None
 
-        self.speed = .3
+        self.speed = .3 # put range of numbers for variability
         self.car = None
         self.car_radius = 3
         self.arrived = False
@@ -260,6 +260,7 @@ Create network graph representation
 class TrafficManager():
     def __init__(self, intersection_nodes = {}, edge_list = [], disallowed_sequences={}):
         self.G = nx.DiGraph()
+        #graph for 
         self.intersection_nodes = intersection_nodes
         self.edge_list = edge_list
         self.disallowed_sequences = disallowed_sequences
@@ -394,7 +395,7 @@ class TrafficManager():
 
             # Dynamic Weighting mechanism
             cars_occupied = len(self.edges[orientation]['cars_occupied'])
-            self.edges[orientation]['weight'] = cars_occupied * 2
+            self.edges[orientation]['weight'] = cars_occupied * 2 #supposedly cars occupied / max capacity of edge
             # print(f"Adjusting weight of {orientation} to {self.edges[orientation]['weight']}")
         else:
             raise KeyError(f"Cannot find the edge {(origin, destination)} or {(destination,origin)}")
@@ -612,8 +613,8 @@ def car_spawn_task(env):
                 each_car.spawn(origin, final_destination)
 
                 #generate text widget
-                text_log = child_canvas.create_text(0, y_offset * canvas_index + 10, anchor='nw', text="START")
-                logs[each_car.index] = text_log
+                # text_log = child_canvas.create_text(0, y_offset * canvas_index + 10, anchor='nw', text="START")
+                # logs[each_car.index] = text_log
 
             yield env.timeout(spawn_delay)
          
