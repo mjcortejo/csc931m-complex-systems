@@ -6,6 +6,8 @@ import random
 import networkx as nx
 import threading
 import numpy as np
+import logging
+from layouts import *
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -69,13 +71,13 @@ class Car:
         self.index = index
         self.pos_x = None
         self.pos_y = None
-
         # Node position and destination information.
         self.origin_node = None #current origin
-        self.last_origin = None # last recorded origin
+        self.last_origin_node = None # last recorded origin
         self.next_destination_node = None # next immediate destination
         self.final_destination_node = None # final destination
         self.node_paths = None # collection of node paths to take by the shortest path finding algorithm
+        self.next_edge = None
         #Attributes
         self.speed = .3 # put range of numbers for variability
         self.car = None # Car canvas object itself
@@ -120,8 +122,8 @@ class Car:
     def __check_subsequence__(self, paths):
         paths_to_check = paths.copy()
 
-        if self.last_origin is not None:
-            paths_to_check.insert(0, self.last_origin)
+        if self.last_origin_node is not None:
+            paths_to_check.insert(0, self.last_origin_node)
         for sequence, node_to_remove in tm.disallowed_sequences.items():
             sequence = list(sequence)
             n = len(sequence)
@@ -134,20 +136,19 @@ class Car:
         """
         Compute the car agent's shortest path using NetworkX's shortest_path function (default: Djikstra)
         """        
-        # edge_weight = tm.get_edge_weight(self.origin_node, self.final_destination_node)
-        # paths = nx.shortest_path(tm.G, self.origin_node, self.final_destination_node, weight='weight')
         paths = nx.dijkstra_path(tm.G, self.origin_node, self.final_destination_node, weight='weight')
 
-        is_illegal_path, node_to_remove = self.__check_subsequence__(paths)
-        if is_illegal_path:
-            temp_G = tm.G.copy()
-            temp_G.remove_node(node_to_remove)
-            paths = nx.dijkstra_path(temp_G, self.origin_node, self.final_destination_node, weight='weight')
+        if tm.disallowed_sequences is not None:
+            is_illegal_path, node_to_remove = self.__check_subsequence__(paths)
+            if is_illegal_path:
+                temp_G = tm.G.copy()
+                temp_G.remove_node(node_to_remove)
+                paths = nx.dijkstra_path(temp_G, self.origin_node, self.final_destination_node, weight='weight')
 
         self.node_paths = iter(paths[1:]) #ommitting first index, since it is already the origin
         self.next_destination_node = next(self.node_paths)
+        self.next_edge = (self.next_destination_node, next(self.node_paths))
     
-
     def spawn(self, origin, final_destination):
         """
          Spawn car at the origin node (usually an entry node).
@@ -210,34 +211,32 @@ class Car:
             __move()
 
         elif distance > 0:
-            # Move the destination to the next destination node if the intersection is green
+            cars_occupied, edge_capacity = tm.get_edge_traffic(self.next_edge)
+            is_next_edge_available = True if cars_occupied < edge_capacity else False
+
             if tm.destination_has_intersection(self.next_destination_node):
-                if tm.get_intersection_light_state(self.next_destination_node, self.origin_node) == "red":
-                    #do not move if intersection is red
-                    pass
-                else:
+                if tm.get_intersection_light_state(self.next_destination_node, self.origin_node) == "green" and is_next_edge_available:
                     __move()
-            else:
+            elif is_next_edge_available:
                 __move()
         else:
             try:
                 tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="remove")
-
-                print(f"Car {self.index} now heading to {self.next_destination_node} from {self.origin_node}")
                 
-                self.last_origin = self.origin_node
+                self.last_origin_node = self.origin_node
                 self.origin_node = self.next_destination_node
 
                 # place recomputation of shortest path here
                 self.compute_shortest_path()
+                # logging.info(f"Car {self.index} now heading to {self.next_destination_node} from {self.origin_node}")
 
                 tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="add")
                 self.wait_time = 0;
 
             except StopIteration:
-                print(f"StopIteration {self.next_destination_node}")
+                # logging.info(f"StopIteration {self.next_destination_node}")
                 self.arrived = True
-                print(f"Car {self.index} has arrived to destination")
+                # logging.info(f"Car {self.index} has arrived to destination")
 
                 #remove self after execution of final destination
                 self.remove_car()
@@ -261,16 +260,30 @@ class Car:
 Create network graph representation
 """
 class TrafficManager():
-    def __init__(self, intersection_nodes = {}, edge_list = [], disallowed_sequences={}):
+    def __init__(self, intersection_nodes, edge_list, **kwargs):
+        """
+        Accepts nodes as intersection points and a list containing the edges.
+        edge_list should contain the nodes found in intersection points, else will return error.
+        """
         self.G = nx.DiGraph()
         #graph for 
         self.intersection_nodes = intersection_nodes
         self.edge_list = edge_list
-        self.disallowed_sequences = disallowed_sequences
+        # self.validate_network()
         self.edges = None
         self.intersection_states = {}
         self.intersection_radius = 4
         self.default_intersection_time = 300
+
+        self.disallowed_sequences = kwargs['disallowed_sequences'] if 'disallowed_sequences' in kwargs.keys() else None
+        if self.disallowed_sequences is None: print("No Disallowed path sequences found.")
+
+        self.default_edge_capacity = kwargs['default_edge_capacity'] if 'default_edge_capacity' in kwargs.keys() else None
+        self.CONST_SYSTEM_DEFAULT_EDGE_CAPACITY = 10 #This will only be used if the user did not defined a default edge capacity of edge entries with no capacity values
+
+        if self.default_edge_capacity is None: 
+            print(f"Default Edge Capacity not defined, If there are no edge capacity values found in edge_list. The value will default to {self.CONST_SYSTEM_DEFAULT_EDGE_CAPACITY}. This might emerge wierd behaviors for the entire system.")
+            self.default_edge_capacity = self.CONST_SYSTEM_DEFAULT_EDGE_CAPACITY
 
         self.entry_nodes = []
         self.entry_edges = []
@@ -285,7 +298,7 @@ class TrafficManager():
             else:
                 color_state = "red"
         
-        print(f"Changing the light state of intersection {intersection_node} heading to {neighboring_node} to {color_state}")
+        # print(f"Changing the light state of intersection {intersection_node} heading to {neighboring_node} to {color_state}")
         self.intersection_states[intersection_node][neighboring_node]["color"] = color_state
 
         #set timer
@@ -302,7 +315,11 @@ class TrafficManager():
         """
 
         return self.intersection_states[intersection_node][neighboring_node]["color"]
-    
+
+    def get_edge_traffic(self, orientation):
+        cars_occupied = len(self.edges[orientation]['cars_occupied'])
+        edge_capacity = self.edges[orientation]['max_capacity']
+        return cars_occupied, edge_capacity
     def destination_has_intersection(self, intersection_node):
         """
          Checks if the destination node has an intersection. This is used to determine if there is a point in the destination to be intersected with the source
@@ -320,12 +337,8 @@ class TrafficManager():
          Builds the network
         """
 
-        self.edges = {i: {'cars_occupied': [], 'weight': 0} for i in self.edge_list}
-        # self.edges = {}
-
-        # for i in self.edge_list:
-        #     self.edges[(i[0], i[1])] = {'cars_occupied': [], 'has_accident': False, 'road_speed': 50, 'one_way': False}
-        #     self.edges[(i[1], i[0])] = {'cars_occupied': [], 'has_accident': False, 'road_speed': 50, 'one_way': False}
+        # self.edges = {i: {'cars_occupied': [], 'weight': 0} for i in self.edge_list}
+        self.edges = {(i[0], i[1]): {'cars_occupied': [], 'weight': 0, 'max_capacity': i[2] if len(i) > 2 else self.default_edge_capacity} for i in self.edge_list}
 
         # Add a node to the graph.
         for index, pos in self.intersection_nodes.items():
@@ -343,22 +356,20 @@ class TrafficManager():
                 self.entry_edges.append(edges)
 
                 #add the inverse edge of the E's as well
-                self.edges[(edges[1], edges[0])] = {'cars_occupied': [], 'weight': 0}
+                self.edges[(edges[1], edges[0])] = {'cars_occupied': [], 'weight': 0, 'max_capacity': edges[2] if len(edges) > 2 else self.default_edge_capacity}
                 self.G.add_edge(edges[1], edges[0])
             elif any("P" in str(edge) for edge in edges):
                 if "P" in str(edges[0]): #this one is more likely to happen for now
                     self.entry_edges.append((edges[0], edges[1]))
 
                     #add the inverse edge of the P's as well
-                    self.edges[(edges[1], edges[0])] = {'cars_occupied': [], 'weight': 0}
+                    self.edges[(edges[1], edges[0])] = {'cars_occupied': [], 'weight': 0, 'max_capacity': edges[2] if len(edges) > 2 else self.default_edge_capacity}
                     self.G.add_edge(edges[1], edges[0])
-
 
         # Loop all nodes and check which nodes have more than 2 edges, and apply intersection states for each edge
         for n in self.G:
-            # print(f"G Degree of {n}: {self.G.degree[n]}")
             # Apply intersection light states between nodes
-            if self.G.in_degree[n] > 2 & self.G.out_degree[n] > 2: #check if node has more than 3 neighbors then apply intersection light states.
+            if self.G.in_degree[n] > 2: #check if node has more than 3 neighbors then apply intersection light states.
                 neighbor_nodes = list(self.G.neighbors(n))
                 self.intersection_states[n] = {}
                 # This function is used to generate a dictionary of light states between nodes and neighbors
@@ -373,7 +384,8 @@ class TrafficManager():
                         "timer": self.default_intersection_time
                     }
 
-                    print(f"Setting {n}, Neighbor {neighbor} to {color_state}")
+                    # color_state = "red"
+                    # print(f"Setting {(n, neighbor)} to {color_state}")
 
         # Draw the intersection of all nodes in the intersection_nodes.
         for index, pos in self.intersection_nodes.items():
@@ -397,8 +409,8 @@ class TrafficManager():
             else: raise Exception("Invalid 'how' value, must be 'add' or 'remove'")
 
             # Dynamic Weighting mechanism
-            cars_occupied = len(self.edges[orientation]['cars_occupied'])
-            self.edges[orientation]['weight'] = cars_occupied * 2 #supposedly cars occupied / max capacity of edge
+            cars_occupied, edge_capacity = self.get_edge_traffic(orientation)
+            self.edges[orientation]['weight'] = cars_occupied / edge_capacity #supposedly cars occupied / max capacity of edge
             # print(f"Adjusting weight of {orientation} to {self.edges[orientation]['weight']}")
         else:
             raise KeyError(f"Cannot find the edge {(origin, destination)} or {(destination,origin)}")
@@ -431,7 +443,7 @@ class TrafficManager():
         canvas.create_oval(x0, y0, x1, y1, fill=color)
         canvas.create_text(x + offset, y + offset, text=index)
 
-    def __draw_line_from_edge__(self, a, b):
+    def __draw_line_from_edge__(self, a, b, capacity=None):
         """
         Accepts 2 nodes, position will be extracted from the intersection_nodes dictionary which contains the X and Y position respectively
         """
@@ -449,138 +461,17 @@ class TrafficManager():
             # Render the lane
             canvas.create_line(start_x, start_y, end_x, end_y, width=lane_width)
 
-def bgc_layout():
-    intersection_nodes = {
-        #ENTRY NODES
-        'E1': (600, 80), 
-        'E2': (50, 50), 
-        'E3': (100, 500),
-        'E4': (650, 500),
-        #PARKING NODES
-        'P1': (150, 125),
-        'P2': (75, 275),
-        'P3': (450, 375),
-        # CONNECTOR NODES (these are used to connect to parking nodes)
-        'C1': (200, 125),
-        'C2': (100, 275),
-        'C3': (400, 375),
-        #PROPER NODES
-        # 1st BGC parallel nodes
-        1: (100, 100),
-        2: (200, 100),
-        3: (300, 100),
-        4: (400, 100),
-        5: (500, 100),
-        6: (600, 125),
-        # 2nd Parallel nodes
-        7: (50, 200),
-        8: (100, 200),
-        9: (200, 150),
-        10: (300, 150),
-        11: (400, 150),
-        12: (500, 150),
-        # 3rd Parallel Nodes
-        13: (50, 300),
-        14: (100, 300),
-        15: (200, 350),
-        16: (300, 350),
-        17: (400, 350),
-        18: (500, 350),
-        # 4th Parallel Nodes
-        19: (100, 400),
-        20: (200, 400),
-        21: (300, 400),
-        22: (400, 400),
-        23: (500, 400),
-        24: (600, 375)
-    }
-
-    #('E2', 1)
-    edge_list = [
-        # Important: Current rules for placing edges.
-        # 1. For Entry (E) nodes, they must be placed first for each of the tuples
-        # 2. For Parking (P) nodes, they must be placed first for each of the tuples
-        # 3. //TODO something about connectors only connected to one direction
-        #Entry nodesz
-        ('E1', 6),('E2', 7),('E3', 19),('E4', 24),
-        #Parking and connector nodes,
-        ('P1', 'C1'), (2, 'C1') , ('C1', 9),
-        ('P2', 'C2'), ('C2', 8), (14, 'C2'),
-        ('P3', 'C3'), (22, 'C3'), ('C3', 17), #Gallery Parkade
-        # Removed
-        # (8, 'C2'),('C2', 14),
-        #Proper nodes
-        (1, 2),(1, 7),
-        (2, 1),(2, 3),# (2, 9),
-        (3, 2),(3, 4),(3, 10),
-        (4, 3),(4, 5),(4, 11),
-        (5, 4),(5, 6),(5, 12),
-        (6, 5),(6, 24),
-        (7, 13),
-        (8, 1),(8, 7),#(8, 14),
-        (9, 2),(9, 8),(9, 15),
-        (10, 9),(10, 11),(10, 16),
-        (11, 4),(11, 10),
-        (12, 5),(12, 11),(12, 18),
-        (13, 14),(13, 19),
-        (14, 15),
-        (15, 9),(15, 16),(15, 20),
-        (16, 17),(16, 21),
-        (17, 11),(17, 18),
-        (18, 12),(18, 23),
-        (19, 14),(19, 20),
-        (20, 15),(20, 19),(20, 21),
-        (21, 20),(21, 22),
-        #(22, 17),
-        (22, 21),(22, 23),
-        (23, 18),(23, 22),(23, 24),
-        (24, 6),(24, 23)
-    ]
-    #REMOVED DUE TO ONE WAY
-    """
-    (1, 8),
-    (7, 1),
-    (7, 8),
-    (8, 9),
-    (9, 10),
-    (10, 3),
-    (11, 12),
-    (11, 17),
-    (13, 7),
-    (14, 8),
-    (14, 13),
-    (14, 19),
-    (15, 14),
-    (16, 10),
-    (16, 15),
-    (17, 16),
-    (17, 22),
-    (18, 17),
-    (19, 13),
-    (21, 16),
-        """
-
-    disallowed_sequences = {
-        ('C1', 9, 2): 2,
-        ('C2', 14, 8): 8,
-        ('C3', 17, 22): 22,
-    }
-    
-    parking_capacities = {
-        "P1": 50,
-        "P2": 100,
-        "P3": 100
-    }
-
-    return intersection_nodes, edge_list, disallowed_sequences
 
 intersection_nodes, edge_list, disallowed_sequences = bgc_layout()
-tm = TrafficManager(intersection_nodes, edge_list, disallowed_sequences)
+# intersection_nodes, edge_list = test_layout()
+tm = TrafficManager(intersection_nodes, edge_list, 
+                    # disallowed_sequences=disallowed_sequences, 
+                    default_edge_capacity=10)
 
 """
 Draw cars in the grid, and assign their origin and destination
 """
-number_of_cars = 200
+number_of_cars = 100
 cars = []
 
 #create a text canvas widget
@@ -603,17 +494,20 @@ def car_spawn_task(env):
                 canvas_index += 1
                 edge_choice = list(random.choice(list(tm.entry_edges)))
                 origin = edge_choice[0]
-                # next_immediate_destination = edge_choice[1]
+                immediate_destination = edge_choice[1]
                 
                 entry_nodes = list(tm.entry_nodes)
-                # print(f"Entry nodes {entry_nodes}")
-                # print(f"Origin {origin}")
 
                 entry_nodes.remove(origin)
 
                 final_destination = random.choice(entry_nodes)
 
-                each_car.spawn(origin, final_destination)
+                cars_occupied, edge_capacity = tm.get_edge_traffic((origin, immediate_destination))
+
+                if cars_occupied <= edge_capacity:
+                    each_car.spawn(origin, final_destination)
+                else:
+                    logging.info(f"{(origin, immediate_destination)} cannot spawn due to full")
 
                 #generate text widget
                 # text_log = child_canvas.create_text(0, y_offset * canvas_index + 10, anchor='nw', text="START")
