@@ -17,10 +17,10 @@ Now drawing the road network using the graph
 
 env = simpy.Environment()
 root = tk.Tk()
-child = tk.Toplevel()
+# child = tk.Toplevel()
 
 canvas = tk.Canvas(root, width=800, height=600)
-child_canvas = tk.Canvas(child, width=500, height=1000)
+# child_canvas = tk.Canvas(child, width=500, height=1000)
 
 # child_canvas.pack()
 canvas.pack()    
@@ -65,28 +65,30 @@ Car Class
 """
 class Car:
     def __init__(self, index):
+        # X Y coordinates, and index of car for canvas ID-ing
         self.index = index
         self.pos_x = None
         self.pos_y = None
 
-        self.origin_node = None
-        self.last_origin = None
-
-        self.node_paths = None
-        self.next_destination_node = None
-        self.final_destination_node = None
-
-        self.speed = .3
-        self.car = None
-        self.car_radius = 3
+        # Node position and destination information.
+        self.origin_node = None #current origin
+        self.last_origin = None # last recorded origin
+        self.next_destination_node = None # next immediate destination
+        self.final_destination_node = None # final destination
+        self.node_paths = None # collection of node paths to take by the shortest path finding algorithm
+        #Attributes
+        self.speed = .3 # put range of numbers for variability
+        self.car = None # Car canvas object itself
+        self.car_radius = 3 # Car canvas radius size
+        self.wait_time = 0
+        # States
         self.arrived = False
-
         self.is_spawned = False
-
+        self.is_moving = False
+        # Awareness Attributes
         self.light_observation_distance = 5
         self.car_collision_observe_distance = 8
-        
-        self.cars_in_front = None
+        self.cars_in_front = None # collection of other car objects
     
     def place_car(self, x, y):
         x0 = x - self.car_radius
@@ -197,7 +199,12 @@ class Car:
                 self.pos_x += (dx / distance) * step
                 self.pos_y += (dy / distance) * step
                 self._move_to(self.pos_x, self.pos_y)
+                self.is_moving = True
+            else:
+                self.is_moving = False
 
+        if not self.is_moving:
+            self.wait_time += 1 #registers at ticks which we'll have to convert to seconds
         # This method is called when the distance is below the light observation distance threshold.
         if distance > self.light_observation_distance:
             __move()
@@ -223,9 +230,9 @@ class Car:
 
                 # place recomputation of shortest path here
                 self.compute_shortest_path()
-                # self.next_destination_node = next(self.node_paths)
 
                 tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="add")
+                self.wait_time = 0;
 
             except StopIteration:
                 print(f"StopIteration {self.next_destination_node}")
@@ -256,6 +263,7 @@ Create network graph representation
 class TrafficManager():
     def __init__(self, intersection_nodes = {}, edge_list = [], disallowed_sequences={}):
         self.G = nx.DiGraph()
+        #graph for 
         self.intersection_nodes = intersection_nodes
         self.edge_list = edge_list
         self.disallowed_sequences = disallowed_sequences
@@ -390,7 +398,7 @@ class TrafficManager():
 
             # Dynamic Weighting mechanism
             cars_occupied = len(self.edges[orientation]['cars_occupied'])
-            self.edges[orientation]['weight'] = cars_occupied * 2
+            self.edges[orientation]['weight'] = cars_occupied * 2 #supposedly cars occupied / max capacity of edge
             # print(f"Adjusting weight of {orientation} to {self.edges[orientation]['weight']}")
         else:
             raise KeyError(f"Cannot find the edge {(origin, destination)} or {(destination,origin)}")
@@ -572,7 +580,7 @@ tm = TrafficManager(intersection_nodes, edge_list, disallowed_sequences)
 """
 Draw cars in the grid, and assign their origin and destination
 """
-number_of_cars = 1000
+number_of_cars = 200
 cars = []
 
 #create a text canvas widget
@@ -608,8 +616,8 @@ def car_spawn_task(env):
                 each_car.spawn(origin, final_destination)
 
                 #generate text widget
-                text_log = child_canvas.create_text(0, y_offset * canvas_index + 10, anchor='nw', text="START")
-                logs[each_car.index] = text_log
+                # text_log = child_canvas.create_text(0, y_offset * canvas_index + 10, anchor='nw', text="START")
+                # logs[each_car.index] = text_log
 
             yield env.timeout(spawn_delay)
          
