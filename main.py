@@ -137,7 +137,7 @@ class Car:
         Compute the car agent's shortest path using NetworkX's shortest_path function (default: Djikstra)
         """        
         paths = nx.dijkstra_path(tm.G, self.origin_node, self.final_destination_node, weight='weight')
-
+        self.next_edge = None
         if tm.disallowed_sequences is not None:
             is_illegal_path, node_to_remove = self.__check_subsequence__(paths)
             if is_illegal_path:
@@ -147,7 +147,9 @@ class Car:
 
         self.node_paths = iter(paths[1:]) #ommitting first index, since it is already the origin
         self.next_destination_node = next(self.node_paths)
-        self.next_edge = (self.next_destination_node, next(self.node_paths))
+        post_next_destination_node = next(self.node_paths, None)
+        if post_next_destination_node:
+            self.next_edge = (self.next_destination_node, post_next_destination_node)
     
     def spawn(self, origin, final_destination):
         """
@@ -233,8 +235,8 @@ class Car:
                 tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="add")
                 self.wait_time = 0;
 
-            except StopIteration:
-                # logging.info(f"StopIteration {self.next_destination_node}")
+            except StopIteration as e:
+                # logging.warning(f"StopIteration {self.next_destination_node}, {e}")
                 self.arrived = True
                 # logging.info(f"Car {self.index} has arrived to destination")
 
@@ -316,9 +318,12 @@ class TrafficManager():
 
         return self.intersection_states[intersection_node][neighboring_node]["color"]
 
-    def get_edge_traffic(self, orientation):
-        cars_occupied = len(self.edges[orientation]['cars_occupied'])
-        edge_capacity = self.edges[orientation]['max_capacity']
+    def get_edge_traffic(self, orientation=None):
+        cars_occupied = -1
+        edge_capacity = 0
+        if orientation:
+            cars_occupied = len(self.edges[orientation]['cars_occupied'])
+            edge_capacity = self.edges[orientation]['max_capacity']
         return cars_occupied, edge_capacity
     def destination_has_intersection(self, intersection_node):
         """
@@ -463,7 +468,7 @@ class TrafficManager():
 
 
 intersection_nodes, edge_list, disallowed_sequences = bgc_layout()
-# intersection_nodes, edge_list = test_layout()
+intersection_nodes, edge_list = test_layout()
 tm = TrafficManager(intersection_nodes, edge_list, 
                     # disallowed_sequences=disallowed_sequences, 
                     default_edge_capacity=10)
@@ -525,8 +530,7 @@ def car_movement_logic(each_car):
 
 def car_task(env):
     while True:
-        # Create a ThreadPoolExecutor with the desired number of threads
-        with ThreadPoolExecutor(max_workers=64) as executor:  # You can adjust max_workers based on the number of cars and available resources
+        with ThreadPoolExecutor(max_workers=64) as executor:
             # Execute the car_movement_logic for each car concurrently in multiple threads
             executor.map(car_movement_logic, cars)
 
