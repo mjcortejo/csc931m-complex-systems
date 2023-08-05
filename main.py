@@ -135,8 +135,6 @@ class Car:
         """
         Compute the car agent's shortest path using NetworkX's shortest_path function (default: Djikstra)
         """        
-        # edge_weight = tm.get_edge_weight(self.origin_node, self.final_destination_node)
-        # paths = nx.shortest_path(tm.G, self.origin_node, self.final_destination_node, weight='weight')
         paths = nx.dijkstra_path(tm.G, self.origin_node, self.final_destination_node, weight='weight')
 
         is_illegal_path, node_to_remove = self.__check_subsequence__(paths)
@@ -224,7 +222,7 @@ class Car:
             try:
                 tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="remove")
 
-                print(f"Car {self.index} now heading to {self.next_destination_node} from {self.origin_node}")
+                logging.info(f"Car {self.index} now heading to {self.next_destination_node} from {self.origin_node}")
                 # logger.info()
                 
                 self.last_origin = self.origin_node
@@ -237,9 +235,9 @@ class Car:
                 self.wait_time = 0;
 
             except StopIteration:
-                print(f"StopIteration {self.next_destination_node}")
+                logging.info(f"StopIteration {self.next_destination_node}")
                 self.arrived = True
-                print(f"Car {self.index} has arrived to destination")
+                logging.info(f"Car {self.index} has arrived to destination")
 
                 #remove self after execution of final destination
                 self.remove_car()
@@ -377,7 +375,7 @@ class TrafficManager():
                         "timer": self.default_intersection_time
                     }
 
-                    print(f"Setting {n}, Neighbor {neighbor} to {color_state}")
+                    logging.info(f"Setting {n}, Neighbor {neighbor} to {color_state}")
 
         # Draw the intersection of all nodes in the intersection_nodes.
         for index, pos in self.intersection_nodes.items():
@@ -508,46 +506,47 @@ def bgc_layout():
         # 3. //TODO something about connectors only connected to one direction
         # 4. If you want to implement edge capacity, add a third value to the tuple ex. (1, 2, 30) 30 -> Capacity
         #Entry nodesz
-        ('E1', 6, 20),('E2', 7, 20),('E3', 20),('E4', 24, 20),
+        ('E1', 6, 20),('E2', 7, 20),('E3', 19, 20),('E4', 24, 20),
         #Parking and connector nodes,
         ('P1', 'C1'), (2, 'C1') , ('C1', 9),
         ('P2', 'C2'), ('C2', 8), (14, 'C2'),
         ('P3', 'C3'), (22, 'C3'), ('C3', 17), #Gallery Parkade
         # Removed
         # (8, 'C2'),('C2', 14),
-        #Proper nodes
-        (1, 2),(1, 7),
-        (2, 1),(2, 3),# (2, 9),
-        (3, 2),(3, 4),(3, 10),
-        (4, 3),(4, 5),(4, 11),
-        (5, 4),(5, 6),(5, 12),
-        (6, 5),(6, 24),
-        (7, 13),
-        (8, 1),(8, 7),#(8, 14),
-        (9, 2),(9, 8),(9, 15),
-        (10, 9),(10, 11),(10, 16),
-        (11, 4),(11, 10),
-        (12, 5),(12, 11),(12, 18),
-        (13, 14),(13, 19),
-        (14, 15),
-        (15, 9),(15, 16),(15, 20),
-        (16, 17),(16, 21),
-        (17, 11),(17, 18),
-        (18, 12),(18, 23),
-        (19, 14),(19, 20),
-        (20, 15),(20, 19),(20, 21),
-        (21, 20),(21, 22),
-        #(22, 17),
-        (22, 21),(22, 23),
-        (23, 18),(23, 22),(23, 24),
-        (24, 6),(24, 23)
+        # 1st Parallel Nodes
+        (1, 2, 10),(1, 7, 10),
+        (2, 1, 10),(2, 3, 10),
+        (3, 2, 10),(3, 4, 10),(3, 10, 7),
+        (4, 3, 10),(4, 5, 10),(4, 11, 7),
+        (5, 4, 10),(5, 6, 10),(5, 12, 7),
+        (6, 5, 10),(6, 24, 25),
+        (7, 13, 10),
+        (8, 1, 10),(8, 7, 7),
+        (9, 2, 7),(9, 8, 15),(9, 15, 20),
+        (10, 9, 10),(10, 11, 10),(10, 16, 20),
+        (11, 4, 7),(11, 10, 10),
+        (12, 5, 7),(12, 11, 10),(12, 18, 20),
+        (13, 14, 7),(13, 19, 10),
+        (14, 15, 15),
+        (15, 9, 20),(15, 16, 10),(15, 20, 7),
+        (16, 17, 10),(16, 21, 7),
+        (17, 11, 20),(17, 18, 10),
+        (18, 12, 20),(18, 23, 7),
+        (19, 14, 10),(19, 20, 10),
+        (20, 15, 7),(20, 19, 10),(20, 21, 10),
+        (21, 20, 10),(21, 22, 10),
+        (22, 21, 10),(22, 23, 10),
+        (23, 18, 7),(23, 22, 10),(23, 24, 10),
+        (24, 6, 25),(24, 23, 10)
     ]
     #REMOVED DUE TO ONE WAY
     """
     (1, 8),
+    (2, 9),
     (7, 1),
     (7, 8),
     (8, 9),
+    (8, 14),
     (9, 10),
     (10, 3),
     (11, 12),
@@ -564,7 +563,8 @@ def bgc_layout():
     (18, 17),
     (19, 13),
     (21, 16),
-        """
+    (22, 17),
+    """
 
     disallowed_sequences = {
         ('C1', 9, 2): 2,
