@@ -210,12 +210,12 @@ class Car:
 
         elif distance > 0:
             cars_occupied, edge_capacity = tm.get_edge_traffic(self.next_edge)
-            is_next_edge_full = True if cars_occupied >= edge_capacity else False
+            is_next_edge_available = True if cars_occupied < edge_capacity else False
 
-            if tm.destination_has_intersection(self.next_destination_node) and not is_next_edge_full:
-                if tm.get_intersection_light_state(self.next_destination_node, self.origin_node) == "green":
+            if tm.destination_has_intersection(self.next_destination_node):
+                if tm.get_intersection_light_state(self.next_destination_node, self.origin_node) == "green" and is_next_edge_available:
                     __move()
-            else:
+            elif is_next_edge_available:
                 __move()
         else:
             try:
@@ -409,8 +409,7 @@ class TrafficManager():
             else: raise Exception("Invalid 'how' value, must be 'add' or 'remove'")
 
             # Dynamic Weighting mechanism
-            cars_occupied = len(self.edges[orientation]['cars_occupied'])
-            edge_capacity = self.edges[orientation]['max_capacity']
+            cars_occupied, edge_capacity = self.get_edge_traffic(orientation)
             self.edges[orientation]['weight'] = cars_occupied / edge_capacity #supposedly cars occupied / max capacity of edge
             # print(f"Adjusting weight of {orientation} to {self.edges[orientation]['weight']}")
         else:
@@ -519,9 +518,9 @@ def bgc_layout():
         # Entry / Exit Nodes
         ('E1', 6, 20),('E2', 7, 20),('E3', 19, 20),('E4', 24, 20),
         #Parking and connector nodes,
-        ('P1', 'C1'), (2, 'C1') , ('C1', 9),
-        ('P2', 'C2'), ('C2', 8), (14, 'C2'),
-        ('P3', 'C3'), (22, 'C3'), ('C3', 17), #Gallery Parkade
+        ('P1', 'C1', 5), (2, 'C1', 3) , ('C1', 9, 4), #Three Parkade
+        ('P2', 'C2', 5), ('C2', 8, 8), (14, 'C2', 2), #Uptown Mall Parking
+        ('P3', 'C3', 5), (22, 'C3', 3), ('C3', 17, 4), #Gallery Parkade
         # Removed
         # (8, 'C2'),('C2', 14),
         # 1st Parallel Nodes
@@ -622,17 +621,20 @@ def car_spawn_task(env):
                 canvas_index += 1
                 edge_choice = list(random.choice(list(tm.entry_edges)))
                 origin = edge_choice[0]
-                # next_immediate_destination = edge_choice[1]
+                immediate_destination = edge_choice[1]
                 
                 entry_nodes = list(tm.entry_nodes)
-                # print(f"Entry nodes {entry_nodes}")
-                # print(f"Origin {origin}")
 
                 entry_nodes.remove(origin)
 
                 final_destination = random.choice(entry_nodes)
 
-                each_car.spawn(origin, final_destination)
+                cars_occupied, edge_capacity = tm.get_edge_traffic((origin, immediate_destination))
+
+                if cars_occupied <= edge_capacity:
+                    each_car.spawn(origin, final_destination)
+                else:
+                    print(f"{(origin, immediate_destination)} cannot spawn due to full")
 
                 #generate text widget
                 # text_log = child_canvas.create_text(0, y_offset * canvas_index + 10, anchor='nw', text="START")
