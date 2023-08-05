@@ -79,7 +79,7 @@ class Car:
         self.node_paths = None # collection of node paths to take by the shortest path finding algorithm
         self.next_edge = None
         #Attributes
-        self.speed = .3 # put range of numbers for variability
+        self.speed = 1 # put range of numbers for variability
         self.car = None # Car canvas object itself
         self.car_radius = 3 # Car canvas radius size
         self.wait_time = 0
@@ -103,6 +103,7 @@ class Car:
 
         choice_color = random.choice(color_list)
         self.car = canvas.create_oval(x0, y0, x1, y1, fill=choice_color)
+        # self.car.bind("<Enter>", self.__on_hover)
 
     def get_coords(self, xy_only=True):
         x0, y0, x1, y1 = canvas.coords(self.car)
@@ -110,6 +111,9 @@ class Car:
             return x0, y0
         else:
             return x0 + self.car_radius, y0 + self.car_radius, x1 - self.car_radius, y1 - self.car_radius
+        
+    # def __on_hover(self, event):
+    #     print(f'You hovered car at Car {self.index} {event.x} X {event.y}.')
     
     def _move_to(self, x, y):
         x0 = x - self.car_radius
@@ -135,7 +139,8 @@ class Car:
     def compute_shortest_path(self):
         """
         Compute the car agent's shortest path using NetworkX's shortest_path function (default: Djikstra)
-        """        
+        """
+        print(self.origin_node, self.final_destination_node)        
         paths = nx.dijkstra_path(tm.G, self.origin_node, self.final_destination_node, weight='weight')
         self.next_edge = None
         if tm.disallowed_sequences is not None:
@@ -213,6 +218,8 @@ class Car:
             __move()
 
         elif distance > 0:
+            # if self.origin_node == 17 and self.next_destination_node == 11:
+            #     print("SHIT")
             cars_occupied, edge_capacity = tm.get_edge_traffic(self.next_edge)
             is_next_edge_available = True if cars_occupied < edge_capacity else False
 
@@ -230,15 +237,14 @@ class Car:
 
                 # place recomputation of shortest path here
                 self.compute_shortest_path()
-                # logging.info(f"Car {self.index} now heading to {self.next_destination_node} from {self.origin_node}")
+                logging.info(f"Car {self.index} now heading to {self.next_destination_node} from {self.origin_node}")
 
                 tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="add")
                 self.wait_time = 0;
 
             except StopIteration as e:
-                # logging.warning(f"StopIteration {self.next_destination_node}, {e}")
+                # print(f"StopIteration {self.next_destination_node}, {e}")
                 self.arrived = True
-                # logging.info(f"Car {self.index} has arrived to destination")
 
                 #remove self after execution of final destination
                 self.remove_car()
@@ -375,7 +381,7 @@ class TrafficManager():
         for n in self.G:
             # Apply intersection light states between nodes
             if self.G.in_degree[n] > 2: #check if node has more than 3 neighbors then apply intersection light states.
-                neighbor_nodes = list(self.G.neighbors(n))
+                neighbor_nodes = list(self.G.predecessors(n)) #must use G.predecessors instead of neighbors
                 self.intersection_states[n] = {}
                 # This function is used to generate a dictionary of light states between nodes and neighbors
                 for index, neighbor in enumerate(neighbor_nodes): #needed to enumerate so I can use module to alternate values
@@ -467,8 +473,8 @@ class TrafficManager():
             canvas.create_line(start_x, start_y, end_x, end_y, width=lane_width)
 
 
-intersection_nodes, edge_list, disallowed_sequences = bgc_layout()
-intersection_nodes, edge_list = test_layout()
+intersection_nodes, edge_list = bgc_layout()
+# intersection_nodes, edge_list = bgc_short_test()
 tm = TrafficManager(intersection_nodes, edge_list, 
                     # disallowed_sequences=disallowed_sequences, 
                     default_edge_capacity=10)
@@ -476,7 +482,7 @@ tm = TrafficManager(intersection_nodes, edge_list,
 """
 Draw cars in the grid, and assign their origin and destination
 """
-number_of_cars = 100
+number_of_cars = 500
 cars = []
 
 #create a text canvas widget
