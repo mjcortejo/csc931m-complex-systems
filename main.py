@@ -6,6 +6,7 @@ import random
 import networkx as nx
 import threading
 import numpy as np
+import logging
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -224,6 +225,7 @@ class Car:
                 tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="remove")
 
                 print(f"Car {self.index} now heading to {self.next_destination_node} from {self.origin_node}")
+                # logger.info()
                 
                 self.last_origin = self.origin_node
                 self.origin_node = self.next_destination_node
@@ -261,7 +263,7 @@ class Car:
 Create network graph representation
 """
 class TrafficManager():
-    def __init__(self, intersection_nodes = {}, edge_list = [], disallowed_sequences={}):
+    def __init__(self, intersection_nodes = {}, edge_list = [], disallowed_sequences={}, **kwargs):
         self.G = nx.DiGraph()
         #graph for 
         self.intersection_nodes = intersection_nodes
@@ -271,6 +273,13 @@ class TrafficManager():
         self.intersection_states = {}
         self.intersection_radius = 4
         self.default_intersection_time = 300
+
+        self.default_edge_capacity = kwargs['default_edge_capacity'] if 'default_edge_capacity' in kwargs.keys() else None
+        self.CONST_SYSTEM_DEFAULT_EDGE_CAPACITY = 10 #This will only be used if the user did not defined a default edge capacity of edge entries with no capacity values
+
+        if self.default_edge_capacity is None: 
+            logging.warning(f"Default Edge Capacity not defined, If there are no edge capacity values found in edge_list. The value will default to {self.CONST_SYSTEM_DEFAULT_EDGE_CAPACITY}. This might emerge a wierd behavior for the entire system.")
+            self.default_edge_capacity = self.CONST_SYSTEM_DEFAULT_EDGE_CAPACITY
 
         self.entry_nodes = []
         self.entry_edges = []
@@ -285,7 +294,7 @@ class TrafficManager():
             else:
                 color_state = "red"
         
-        print(f"Changing the light state of intersection {intersection_node} heading to {neighboring_node} to {color_state}")
+        logging.info(f"Changing the light state of intersection {intersection_node} heading to {neighboring_node} to {color_state}")
         self.intersection_states[intersection_node][neighboring_node]["color"] = color_state
 
         #set timer
@@ -320,12 +329,8 @@ class TrafficManager():
          Builds the network
         """
 
-        self.edges = {i: {'cars_occupied': [], 'weight': 0} for i in self.edge_list}
-        # self.edges = {}
-
-        # for i in self.edge_list:
-        #     self.edges[(i[0], i[1])] = {'cars_occupied': [], 'has_accident': False, 'road_speed': 50, 'one_way': False}
-        #     self.edges[(i[1], i[0])] = {'cars_occupied': [], 'has_accident': False, 'road_speed': 50, 'one_way': False}
+        # self.edges = {i: {'cars_occupied': [], 'weight': 0} for i in self.edge_list}
+        self.edges = {(i[0], i[1]): {'cars_occupied': [], 'weight': 0} for i in self.edge_list}
 
         # Add a node to the graph.
         for index, pos in self.intersection_nodes.items():
@@ -356,7 +361,6 @@ class TrafficManager():
 
         # Loop all nodes and check which nodes have more than 2 edges, and apply intersection states for each edge
         for n in self.G:
-            # print(f"G Degree of {n}: {self.G.degree[n]}")
             # Apply intersection light states between nodes
             if self.G.in_degree[n] > 2 & self.G.out_degree[n] > 2: #check if node has more than 3 neighbors then apply intersection light states.
                 neighbor_nodes = list(self.G.neighbors(n))
@@ -431,7 +435,7 @@ class TrafficManager():
         canvas.create_oval(x0, y0, x1, y1, fill=color)
         canvas.create_text(x + offset, y + offset, text=index)
 
-    def __draw_line_from_edge__(self, a, b):
+    def __draw_line_from_edge__(self, a, b, capacity=None):
         """
         Accepts 2 nodes, position will be extracted from the intersection_nodes dictionary which contains the X and Y position respectively
         """
@@ -497,12 +501,14 @@ def bgc_layout():
 
     #('E2', 1)
     edge_list = [
+        # TUPLE SYNTAX: (Node1, Node2, Capacity) -> (1, 2, 30). 30 being the capcity. If none entered, will be using a default value by the TrafficManager class
         # Important: Current rules for placing edges.
         # 1. For Entry (E) nodes, they must be placed first for each of the tuples
         # 2. For Parking (P) nodes, they must be placed first for each of the tuples
         # 3. //TODO something about connectors only connected to one direction
+        # 4. If you want to implement edge capacity, add a third value to the tuple ex. (1, 2, 30) 30 -> Capacity
         #Entry nodesz
-        ('E1', 6),('E2', 7),('E3', 19),('E4', 24),
+        ('E1', 6, 20),('E2', 7, 20),('E3', 20),('E4', 24, 20),
         #Parking and connector nodes,
         ('P1', 'C1'), (2, 'C1') , ('C1', 9),
         ('P2', 'C2'), ('C2', 8), (14, 'C2'),
@@ -575,7 +581,7 @@ def bgc_layout():
     return intersection_nodes, edge_list, disallowed_sequences
 
 intersection_nodes, edge_list, disallowed_sequences = bgc_layout()
-tm = TrafficManager(intersection_nodes, edge_list, disallowed_sequences)
+tm = TrafficManager(intersection_nodes, edge_list, disallowed_sequences, default_edge_capacity=10)
 
 """
 Draw cars in the grid, and assign their origin and destination
