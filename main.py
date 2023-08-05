@@ -72,10 +72,11 @@ class Car:
         self.pos_y = None
         # Node position and destination information.
         self.origin_node = None #current origin
-        self.last_origin = None # last recorded origin
+        self.last_origin_node = None # last recorded origin
         self.next_destination_node = None # next immediate destination
         self.final_destination_node = None # final destination
         self.node_paths = None # collection of node paths to take by the shortest path finding algorithm
+        self.next_edge = None
         #Attributes
         self.speed = .3 # put range of numbers for variability
         self.car = None # Car canvas object itself
@@ -120,8 +121,8 @@ class Car:
     def __check_subsequence__(self, paths):
         paths_to_check = paths.copy()
 
-        if self.last_origin is not None:
-            paths_to_check.insert(0, self.last_origin)
+        if self.last_origin_node is not None:
+            paths_to_check.insert(0, self.last_origin_node)
         for sequence, node_to_remove in tm.disallowed_sequences.items():
             sequence = list(sequence)
             n = len(sequence)
@@ -144,6 +145,7 @@ class Car:
 
         self.node_paths = iter(paths[1:]) #ommitting first index, since it is already the origin
         self.next_destination_node = next(self.node_paths)
+        self.next_edge = (self.next_destination_node, next(self.node_paths))
     
     def spawn(self, origin, final_destination):
         """
@@ -209,7 +211,9 @@ class Car:
         elif distance > 0:
             # Move the destination to the next destination node if the intersection is green
             if tm.destination_has_intersection(self.next_destination_node):
-                if tm.get_intersection_light_state(self.next_destination_node, self.origin_node) == "red":
+                next_edge_info = tm.get_cars_in_edge(self.next_edge)
+                is_edge_full = True if next_edge_info['cars_occupied'] >= next_edge_info['max_capacity'] else False
+                if tm.get_intersection_light_state(self.next_destination_node, self.origin_node) == "red" or is_edge_full:
                     #do not move if intersection is red
                     pass
                 else:
@@ -222,7 +226,7 @@ class Car:
 
                 # logger.info()
                 
-                self.last_origin = self.origin_node
+                self.last_origin_node = self.origin_node
                 self.origin_node = self.next_destination_node
 
                 # place recomputation of shortest path here
