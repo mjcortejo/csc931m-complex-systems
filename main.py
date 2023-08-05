@@ -65,29 +65,30 @@ Car Class
 """
 class Car:
     def __init__(self, index):
+        # X Y coordinates, and index of car for canvas ID-ing
         self.index = index
         self.pos_x = None
         self.pos_y = None
 
-        self.origin_node = None
-        self.last_origin = None
-
-        self.node_paths = None
-        self.next_destination_node = None
-        self.final_destination_node = None
-
+        # Node position and destination information.
+        self.origin_node = None #current origin
+        self.last_origin = None # last recorded origin
+        self.next_destination_node = None # next immediate destination
+        self.final_destination_node = None # final destination
+        self.node_paths = None # collection of node paths to take by the shortest path finding algorithm
+        #Attributes
         self.speed = .3 # put range of numbers for variability
-        self.car = None
-        self.car_radius = 3
-        self.arrived = False
+        self.car = None # Car canvas object itself
+        self.car_radius = 3 # Car canvas radius size
         self.wait_time = 0
-
+        # States
+        self.arrived = False
         self.is_spawned = False
-
+        self.is_moving = False
+        # Awareness Attributes
         self.light_observation_distance = 5
         self.car_collision_observe_distance = 8
-        
-        self.cars_in_front = None
+        self.cars_in_front = None # collection of other car objects
     
     def place_car(self, x, y):
         x0 = x - self.car_radius
@@ -198,9 +199,12 @@ class Car:
                 self.pos_x += (dx / distance) * step
                 self.pos_y += (dy / distance) * step
                 self._move_to(self.pos_x, self.pos_y)
+                self.is_moving = True
+            else:
+                self.is_moving = False
 
-
-
+        if not self.is_moving:
+            self.wait_time += 1 #registers at ticks which we'll have to convert to seconds
         # This method is called when the distance is below the light observation distance threshold.
         if distance > self.light_observation_distance:
             __move()
@@ -210,7 +214,7 @@ class Car:
             if tm.destination_has_intersection(self.next_destination_node):
                 if tm.get_intersection_light_state(self.next_destination_node, self.origin_node) == "red":
                     #do not move if intersection is red
-                    self.wait_time += 1
+                    pass
                 else:
                     __move()
             else:
@@ -226,7 +230,6 @@ class Car:
 
                 # place recomputation of shortest path here
                 self.compute_shortest_path()
-                # self.next_destination_node = next(self.node_paths)
 
                 tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="add")
                 self.wait_time = 0;
@@ -577,7 +580,7 @@ tm = TrafficManager(intersection_nodes, edge_list, disallowed_sequences)
 """
 Draw cars in the grid, and assign their origin and destination
 """
-number_of_cars = 1000
+number_of_cars = 200
 cars = []
 
 #create a text canvas widget
