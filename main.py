@@ -70,7 +70,6 @@ class Car:
         self.index = index
         self.pos_x = None
         self.pos_y = None
-
         # Node position and destination information.
         self.origin_node = None #current origin
         self.last_origin = None # last recorded origin
@@ -146,7 +145,6 @@ class Car:
         self.node_paths = iter(paths[1:]) #ommitting first index, since it is already the origin
         self.next_destination_node = next(self.node_paths)
     
-
     def spawn(self, origin, final_destination):
         """
          Spawn car at the origin node (usually an entry node).
@@ -261,16 +259,23 @@ class Car:
 Create network graph representation
 """
 class TrafficManager():
-    def __init__(self, intersection_nodes = {}, edge_list = [], disallowed_sequences={}, **kwargs):
+    def __init__(self, intersection_nodes, edge_list, **kwargs):
+        """
+        Accepts nodes as intersection points and a list containing the edges.
+        edge_list should contain the nodes found in intersection points, else will return error.
+        """
         self.G = nx.DiGraph()
         #graph for 
         self.intersection_nodes = intersection_nodes
         self.edge_list = edge_list
-        self.disallowed_sequences = disallowed_sequences
+        # self.validate_network()
         self.edges = None
         self.intersection_states = {}
         self.intersection_radius = 4
         self.default_intersection_time = 300
+
+        self.disallowed_sequences = kwargs['disallowed_sequences'] if 'disallowed_sequences' in kwargs.keys() else {}
+        if self.disallowed_sequences is None: logging.info("No Disallowed path sequences found.")
 
         self.default_edge_capacity = kwargs['default_edge_capacity'] if 'default_edge_capacity' in kwargs.keys() else None
         self.CONST_SYSTEM_DEFAULT_EDGE_CAPACITY = 10 #This will only be used if the user did not defined a default edge capacity of edge entries with no capacity values
@@ -328,7 +333,7 @@ class TrafficManager():
         """
 
         # self.edges = {i: {'cars_occupied': [], 'weight': 0} for i in self.edge_list}
-        self.edges = {(i[0], i[1]): {'cars_occupied': [], 'weight': 0} for i in self.edge_list}
+        self.edges = {(i[0], i[1]): {'cars_occupied': [], 'weight': 0, 'max_capacity': i[2] if len(i) > 2 else self.default_edge_capacity} for i in self.edge_list}
 
         # Add a node to the graph.
         for index, pos in self.intersection_nodes.items():
@@ -346,16 +351,15 @@ class TrafficManager():
                 self.entry_edges.append(edges)
 
                 #add the inverse edge of the E's as well
-                self.edges[(edges[1], edges[0])] = {'cars_occupied': [], 'weight': 0}
+                self.edges[(edges[1], edges[0])] = {'cars_occupied': [], 'weight': 0, 'max_capacity': edges[2] if len(edges) > 2 else self.default_edge_capacity}
                 self.G.add_edge(edges[1], edges[0])
             elif any("P" in str(edge) for edge in edges):
                 if "P" in str(edges[0]): #this one is more likely to happen for now
                     self.entry_edges.append((edges[0], edges[1]))
 
                     #add the inverse edge of the P's as well
-                    self.edges[(edges[1], edges[0])] = {'cars_occupied': [], 'weight': 0}
+                    self.edges[(edges[1], edges[0])] = {'cars_occupied': [], 'weight': 0, 'max_capacity': edges[2] if len(edges) > 2 else self.default_edge_capacity}
                     self.G.add_edge(edges[1], edges[0])
-
 
         # Loop all nodes and check which nodes have more than 2 edges, and apply intersection states for each edge
         for n in self.G:
@@ -505,7 +509,7 @@ def bgc_layout():
         # 2. For Parking (P) nodes, they must be placed first for each of the tuples
         # 3. //TODO something about connectors only connected to one direction
         # 4. If you want to implement edge capacity, add a third value to the tuple ex. (1, 2, 30) 30 -> Capacity
-        #Entry nodesz
+        # Entry / Exit Nodes
         ('E1', 6, 20),('E2', 7, 20),('E3', 19, 20),('E4', 24, 20),
         #Parking and connector nodes,
         ('P1', 'C1'), (2, 'C1') , ('C1', 9),
@@ -581,7 +585,9 @@ def bgc_layout():
     return intersection_nodes, edge_list, disallowed_sequences
 
 intersection_nodes, edge_list, disallowed_sequences = bgc_layout()
-tm = TrafficManager(intersection_nodes, edge_list, disallowed_sequences, default_edge_capacity=10)
+tm = TrafficManager(intersection_nodes, edge_list, 
+                    disallowed_sequences=disallowed_sequences, 
+                    default_edge_capacity=10)
 
 """
 Draw cars in the grid, and assign their origin and destination
