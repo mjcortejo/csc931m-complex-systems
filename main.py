@@ -404,8 +404,9 @@ class TrafficManager():
 
             # Dynamic Weighting mechanism
             cars_occupied = len(self.edges[orientation]['cars_occupied'])
-            self.edges[orientation]['weight'] = cars_occupied * 2 #supposedly cars occupied / max capacity of edge
-            # print(f"Adjusting weight of {orientation} to {self.edges[orientation]['weight']}")
+            edge_capacity = self.edges[orientation]['max_capacity']
+            self.edges[orientation]['weight'] = cars_occupied / edge_capacity #supposedly cars occupied / max capacity of edge
+            print(f"Adjusting weight of {orientation} to {self.edges[orientation]['weight']}")
         else:
             raise KeyError(f"Cannot find the edge {(origin, destination)} or {(destination,origin)}")
         
