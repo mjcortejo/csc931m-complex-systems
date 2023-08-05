@@ -220,7 +220,6 @@ class Car:
             try:
                 tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="remove")
 
-                logging.info(f"Car {self.index} now heading to {self.next_destination_node} from {self.origin_node}")
                 # logger.info()
                 
                 self.last_origin = self.origin_node
@@ -228,6 +227,7 @@ class Car:
 
                 # place recomputation of shortest path here
                 self.compute_shortest_path()
+                logging.info(f"Car {self.index} now heading to {self.next_destination_node} from {self.origin_node}")
 
                 tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="add")
                 self.wait_time = 0;
@@ -314,6 +314,15 @@ class TrafficManager():
         """
 
         return self.intersection_states[intersection_node][neighboring_node]["color"]
+
+    def get_edge_traffic(self, origin_node, destination_node):
+        orientation = (origin_node, destination_node)
+        cars_occupied = len(self.edges[orientation]['cars_occupied'])
+        edge_capacity = self.edges[orientation]['max_capacity']
+        return {
+            'cars_occupied': cars_occupied,
+            'edge_capacity': edge_capacity
+        }
     
     def destination_has_intersection(self, intersection_node):
         """
