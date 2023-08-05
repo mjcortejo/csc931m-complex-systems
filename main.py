@@ -6,7 +6,7 @@ import random
 import networkx as nx
 import threading
 import numpy as np
-import logging
+# import logging
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -209,11 +209,11 @@ class Car:
             __move()
 
         elif distance > 0:
-            # Move the destination to the next destination node if the intersection is green
+            cars_occupied, edge_capacity = tm.get_edge_traffic(self.next_edge)
+            is_next_edge_full = True if cars_occupied >= edge_capacity else False
+
             if tm.destination_has_intersection(self.next_destination_node):
-                next_edge_info = tm.get_cars_in_edge(self.next_edge)
-                is_edge_full = True if next_edge_info['cars_occupied'] >= next_edge_info['max_capacity'] else False
-                if tm.get_intersection_light_state(self.next_destination_node, self.origin_node) == "red" or is_edge_full:
+                if tm.get_intersection_light_state(self.next_destination_node, self.origin_node) == "red":
                     #do not move if intersection is red
                     pass
                 else:
@@ -223,23 +223,21 @@ class Car:
         else:
             try:
                 tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="remove")
-
-                # logger.info()
                 
                 self.last_origin_node = self.origin_node
                 self.origin_node = self.next_destination_node
 
                 # place recomputation of shortest path here
                 self.compute_shortest_path()
-                logging.info(f"Car {self.index} now heading to {self.next_destination_node} from {self.origin_node}")
+                # logging.info(f"Car {self.index} now heading to {self.next_destination_node} from {self.origin_node}")
 
                 tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="add")
                 self.wait_time = 0;
 
             except StopIteration:
-                logging.info(f"StopIteration {self.next_destination_node}")
+                # logging.info(f"StopIteration {self.next_destination_node}")
                 self.arrived = True
-                logging.info(f"Car {self.index} has arrived to destination")
+                # logging.info(f"Car {self.index} has arrived to destination")
 
                 #remove self after execution of final destination
                 self.remove_car()
@@ -279,13 +277,13 @@ class TrafficManager():
         self.default_intersection_time = 300
 
         self.disallowed_sequences = kwargs['disallowed_sequences'] if 'disallowed_sequences' in kwargs.keys() else {}
-        if self.disallowed_sequences is None: logging.info("No Disallowed path sequences found.")
+        if self.disallowed_sequences is None: print("No Disallowed path sequences found.")
 
         self.default_edge_capacity = kwargs['default_edge_capacity'] if 'default_edge_capacity' in kwargs.keys() else None
         self.CONST_SYSTEM_DEFAULT_EDGE_CAPACITY = 10 #This will only be used if the user did not defined a default edge capacity of edge entries with no capacity values
 
         if self.default_edge_capacity is None: 
-            logging.warning(f"Default Edge Capacity not defined, If there are no edge capacity values found in edge_list. The value will default to {self.CONST_SYSTEM_DEFAULT_EDGE_CAPACITY}. This might emerge a wierd behavior for the entire system.")
+            print(f"Default Edge Capacity not defined, If there are no edge capacity values found in edge_list. The value will default to {self.CONST_SYSTEM_DEFAULT_EDGE_CAPACITY}. This might emerge a wierd behavior for the entire system.")
             self.default_edge_capacity = self.CONST_SYSTEM_DEFAULT_EDGE_CAPACITY
 
         self.entry_nodes = []
@@ -301,7 +299,7 @@ class TrafficManager():
             else:
                 color_state = "red"
         
-        logging.info(f"Changing the light state of intersection {intersection_node} heading to {neighboring_node} to {color_state}")
+        print(f"Changing the light state of intersection {intersection_node} heading to {neighboring_node} to {color_state}")
         self.intersection_states[intersection_node][neighboring_node]["color"] = color_state
 
         #set timer
@@ -319,15 +317,10 @@ class TrafficManager():
 
         return self.intersection_states[intersection_node][neighboring_node]["color"]
 
-    def get_edge_traffic(self, origin_node, destination_node):
-        orientation = (origin_node, destination_node)
+    def get_edge_traffic(self, orientation):
         cars_occupied = len(self.edges[orientation]['cars_occupied'])
         edge_capacity = self.edges[orientation]['max_capacity']
-        return {
-            'cars_occupied': cars_occupied,
-            'edge_capacity': edge_capacity
-        }
-    
+        return cars_occupied, edge_capacity
     def destination_has_intersection(self, intersection_node):
         """
          Checks if the destination node has an intersection. This is used to determine if there is a point in the destination to be intersected with the source
@@ -377,22 +370,25 @@ class TrafficManager():
         # Loop all nodes and check which nodes have more than 2 edges, and apply intersection states for each edge
         for n in self.G:
             # Apply intersection light states between nodes
-            if self.G.in_degree[n] > 2 & self.G.out_degree[n] > 2: #check if node has more than 3 neighbors then apply intersection light states.
+            if self.G.in_degree[n] > 2: #check if node has more than 3 neighbors then apply intersection light states.
                 neighbor_nodes = list(self.G.neighbors(n))
                 self.intersection_states[n] = {}
                 # This function is used to generate a dictionary of light states between nodes and neighbors
                 for index, neighbor in enumerate(neighbor_nodes): #needed to enumerate so I can use module to alternate values
-                    color_state = "green"
+                    # color_state = "green"
 
-                    # TODO: Change this back to 3 once its fixed
-                    if index % 3 == 0: #alternate light states between nodes
-                        color_state = "red"
-                    self.intersection_states[n][neighbor] = {
-                        "color": color_state,
-                        "timer": self.default_intersection_time
-                    }
+                    # # TODO: Change this back to 3 once its fixed
+                    # if index % 3 == 0: #alternate light states between nodes
+                    #     color_state = "red"
+                    # self.intersection_states[n][neighbor] = {
+                    #     "color": color_state,
+                    #     "timer": self.default_intersection_time
+                    # }
 
-                    logging.info(f"Setting {n}, Neighbor {neighbor} to {color_state}")
+                    color_state = "red"
+
+                    # print(f"Setting {n}, Neighbor {neighbor} to {color_state}")
+                    print(f"Setting {(n, neighbor)} to {color_state}")
 
         # Draw the intersection of all nodes in the intersection_nodes.
         for index, pos in self.intersection_nodes.items():
@@ -419,7 +415,7 @@ class TrafficManager():
             cars_occupied = len(self.edges[orientation]['cars_occupied'])
             edge_capacity = self.edges[orientation]['max_capacity']
             self.edges[orientation]['weight'] = cars_occupied / edge_capacity #supposedly cars occupied / max capacity of edge
-            print(f"Adjusting weight of {orientation} to {self.edges[orientation]['weight']}")
+            # print(f"Adjusting weight of {orientation} to {self.edges[orientation]['weight']}")
         else:
             raise KeyError(f"Cannot find the edge {(origin, destination)} or {(destination,origin)}")
         
