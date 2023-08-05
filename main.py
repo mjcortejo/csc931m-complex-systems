@@ -212,11 +212,8 @@ class Car:
             cars_occupied, edge_capacity = tm.get_edge_traffic(self.next_edge)
             is_next_edge_full = True if cars_occupied >= edge_capacity else False
 
-            if tm.destination_has_intersection(self.next_destination_node):
-                if tm.get_intersection_light_state(self.next_destination_node, self.origin_node) == "red":
-                    #do not move if intersection is red
-                    pass
-                else:
+            if tm.destination_has_intersection(self.next_destination_node) and not is_next_edge_full:
+                if tm.get_intersection_light_state(self.next_destination_node, self.origin_node) == "green":
                     __move()
             else:
                 __move()
