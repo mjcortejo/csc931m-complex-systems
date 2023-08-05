@@ -6,7 +6,8 @@ import random
 import networkx as nx
 import threading
 import numpy as np
-# import logging
+import logging
+from layouts import *
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -137,11 +138,12 @@ class Car:
         """        
         paths = nx.dijkstra_path(tm.G, self.origin_node, self.final_destination_node, weight='weight')
 
-        is_illegal_path, node_to_remove = self.__check_subsequence__(paths)
-        if is_illegal_path:
-            temp_G = tm.G.copy()
-            temp_G.remove_node(node_to_remove)
-            paths = nx.dijkstra_path(temp_G, self.origin_node, self.final_destination_node, weight='weight')
+        if tm.disallowed_sequences is not None:
+            is_illegal_path, node_to_remove = self.__check_subsequence__(paths)
+            if is_illegal_path:
+                temp_G = tm.G.copy()
+                temp_G.remove_node(node_to_remove)
+                paths = nx.dijkstra_path(temp_G, self.origin_node, self.final_destination_node, weight='weight')
 
         self.node_paths = iter(paths[1:]) #ommitting first index, since it is already the origin
         self.next_destination_node = next(self.node_paths)
@@ -273,14 +275,14 @@ class TrafficManager():
         self.intersection_radius = 4
         self.default_intersection_time = 300
 
-        self.disallowed_sequences = kwargs['disallowed_sequences'] if 'disallowed_sequences' in kwargs.keys() else {}
+        self.disallowed_sequences = kwargs['disallowed_sequences'] if 'disallowed_sequences' in kwargs.keys() else None
         if self.disallowed_sequences is None: print("No Disallowed path sequences found.")
 
         self.default_edge_capacity = kwargs['default_edge_capacity'] if 'default_edge_capacity' in kwargs.keys() else None
         self.CONST_SYSTEM_DEFAULT_EDGE_CAPACITY = 10 #This will only be used if the user did not defined a default edge capacity of edge entries with no capacity values
 
         if self.default_edge_capacity is None: 
-            print(f"Default Edge Capacity not defined, If there are no edge capacity values found in edge_list. The value will default to {self.CONST_SYSTEM_DEFAULT_EDGE_CAPACITY}. This might emerge a wierd behavior for the entire system.")
+            print(f"Default Edge Capacity not defined, If there are no edge capacity values found in edge_list. The value will default to {self.CONST_SYSTEM_DEFAULT_EDGE_CAPACITY}. This might emerge wierd behaviors for the entire system.")
             self.default_edge_capacity = self.CONST_SYSTEM_DEFAULT_EDGE_CAPACITY
 
         self.entry_nodes = []
@@ -296,7 +298,7 @@ class TrafficManager():
             else:
                 color_state = "red"
         
-        print(f"Changing the light state of intersection {intersection_node} heading to {neighboring_node} to {color_state}")
+        # print(f"Changing the light state of intersection {intersection_node} heading to {neighboring_node} to {color_state}")
         self.intersection_states[intersection_node][neighboring_node]["color"] = color_state
 
         #set timer
@@ -372,20 +374,18 @@ class TrafficManager():
                 self.intersection_states[n] = {}
                 # This function is used to generate a dictionary of light states between nodes and neighbors
                 for index, neighbor in enumerate(neighbor_nodes): #needed to enumerate so I can use module to alternate values
-                    # color_state = "green"
+                    color_state = "green"
 
-                    # # TODO: Change this back to 3 once its fixed
-                    # if index % 3 == 0: #alternate light states between nodes
-                    #     color_state = "red"
-                    # self.intersection_states[n][neighbor] = {
-                    #     "color": color_state,
-                    #     "timer": self.default_intersection_time
-                    # }
+                    # TODO: Change this back to 3 once its fixed
+                    if index % 3 == 0: #alternate light states between nodes
+                        color_state = "red"
+                    self.intersection_states[n][neighbor] = {
+                        "color": color_state,
+                        "timer": self.default_intersection_time
+                    }
 
-                    color_state = "red"
-
-                    # print(f"Setting {n}, Neighbor {neighbor} to {color_state}")
-                    print(f"Setting {(n, neighbor)} to {color_state}")
+                    # color_state = "red"
+                    # print(f"Setting {(n, neighbor)} to {color_state}")
 
         # Draw the intersection of all nodes in the intersection_nodes.
         for index, pos in self.intersection_nodes.items():
@@ -461,144 +461,17 @@ class TrafficManager():
             # Render the lane
             canvas.create_line(start_x, start_y, end_x, end_y, width=lane_width)
 
-def bgc_layout():
-    intersection_nodes = {
-        #ENTRY NODES
-        'E1': (600, 80), 
-        'E2': (50, 50), 
-        'E3': (100, 500),
-        'E4': (650, 500),
-        #PARKING NODES
-        'P1': (150, 125),
-        'P2': (75, 275),
-        'P3': (450, 375),
-        # CONNECTOR NODES (these are used to connect to parking nodes)
-        'C1': (200, 125),
-        'C2': (100, 275),
-        'C3': (400, 375),
-        #PROPER NODES
-        # 1st BGC parallel nodes
-        1: (100, 100),
-        2: (200, 100),
-        3: (300, 100),
-        4: (400, 100),
-        5: (500, 100),
-        6: (600, 125),
-        # 2nd Parallel nodes
-        7: (50, 200),
-        8: (100, 200),
-        9: (200, 150),
-        10: (300, 150),
-        11: (400, 150),
-        12: (500, 150),
-        # 3rd Parallel Nodes
-        13: (50, 300),
-        14: (100, 300),
-        15: (200, 350),
-        16: (300, 350),
-        17: (400, 350),
-        18: (500, 350),
-        # 4th Parallel Nodes
-        19: (100, 400),
-        20: (200, 400),
-        21: (300, 400),
-        22: (400, 400),
-        23: (500, 400),
-        24: (600, 375)
-    }
-
-    #('E2', 1)
-    edge_list = [
-        # TUPLE SYNTAX: (Node1, Node2, Capacity) -> (1, 2, 30). 30 being the capcity. If none entered, will be using a default value by the TrafficManager class
-        # Important: Current rules for placing edges.
-        # 1. For Entry (E) nodes, they must be placed first for each of the tuples
-        # 2. For Parking (P) nodes, they must be placed first for each of the tuples
-        # 3. //TODO something about connectors only connected to one direction
-        # 4. If you want to implement edge capacity, add a third value to the tuple ex. (1, 2, 30) 30 -> Capacity
-        # Entry / Exit Nodes
-        ('E1', 6, 20),('E2', 7, 20),('E3', 19, 20),('E4', 24, 20),
-        #Parking and connector nodes,
-        ('P1', 'C1', 5), (2, 'C1', 3) , ('C1', 9, 4), #Three Parkade
-        ('P2', 'C2', 5), ('C2', 8, 8), (14, 'C2', 2), #Uptown Mall Parking
-        ('P3', 'C3', 5), (22, 'C3', 3), ('C3', 17, 4), #Gallery Parkade
-        # Removed
-        # (8, 'C2'),('C2', 14),
-        # 1st Parallel Nodes
-        (1, 2, 10),(1, 7, 10),
-        (2, 1, 10),(2, 3, 10),
-        (3, 2, 10),(3, 4, 10),(3, 10, 7),
-        (4, 3, 10),(4, 5, 10),(4, 11, 7),
-        (5, 4, 10),(5, 6, 10),(5, 12, 7),
-        (6, 5, 10),(6, 24, 25),
-        (7, 13, 10),
-        (8, 1, 10),(8, 7, 7),
-        (9, 2, 7),(9, 8, 15),(9, 15, 20),
-        (10, 9, 10),(10, 11, 10),(10, 16, 20),
-        (11, 4, 7),(11, 10, 10),
-        (12, 5, 7),(12, 11, 10),(12, 18, 20),
-        (13, 14, 7),(13, 19, 10),
-        (14, 15, 15),
-        (15, 9, 20),(15, 16, 10),(15, 20, 7),
-        (16, 17, 10),(16, 21, 7),
-        (17, 11, 20),(17, 18, 10),
-        (18, 12, 20),(18, 23, 7),
-        (19, 14, 10),(19, 20, 10),
-        (20, 15, 7),(20, 19, 10),(20, 21, 10),
-        (21, 20, 10),(21, 22, 10),
-        (22, 21, 10),(22, 23, 10),
-        (23, 18, 7),(23, 22, 10),(23, 24, 10),
-        (24, 6, 25),(24, 23, 10)
-    ]
-    #REMOVED DUE TO ONE WAY
-    """
-    (1, 8),
-    (2, 9),
-    (7, 1),
-    (7, 8),
-    (8, 9),
-    (8, 14),
-    (9, 10),
-    (10, 3),
-    (11, 12),
-    (11, 17),
-    (13, 7),
-    (14, 8),
-    (14, 13),
-    (14, 19),
-    (15, 14),
-    (16, 10),
-    (16, 15),
-    (17, 16),
-    (17, 22),
-    (18, 17),
-    (19, 13),
-    (21, 16),
-    (22, 17),
-    """
-
-    disallowed_sequences = {
-        ('C1', 9, 2): 2,
-        ('C2', 14, 8): 8,
-        ('C3', 17, 22): 22,
-    }
-    
-    parking_capacities = {
-        "P1": 50,
-        "P2": 100,
-        "P3": 100
-    }
-
-    return intersection_nodes, edge_list, disallowed_sequences
 
 intersection_nodes, edge_list, disallowed_sequences = bgc_layout()
+# intersection_nodes, edge_list = test_layout()
 tm = TrafficManager(intersection_nodes, edge_list, 
-                    disallowed_sequences=disallowed_sequences, 
+                    # disallowed_sequences=disallowed_sequences, 
                     default_edge_capacity=10)
 
 """
 Draw cars in the grid, and assign their origin and destination
 """
-number_of_cars = 200
+number_of_cars = 100
 cars = []
 
 #create a text canvas widget
@@ -634,7 +507,7 @@ def car_spawn_task(env):
                 if cars_occupied <= edge_capacity:
                     each_car.spawn(origin, final_destination)
                 else:
-                    print(f"{(origin, immediate_destination)} cannot spawn due to full")
+                    logging.info(f"{(origin, immediate_destination)} cannot spawn due to full")
 
                 #generate text widget
                 # text_log = child_canvas.create_text(0, y_offset * canvas_index + 10, anchor='nw', text="START")
