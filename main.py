@@ -66,11 +66,15 @@ color_list = [
 Car Class
 """
 class Car:
-    def __init__(self, index):
+    def __init__(self, index, **kwargs):
         # X Y coordinates, and index of car for canvas ID-ing
         self.index = index
         self.pos_x = None
         self.pos_y = None
+
+        # Constants
+        self.DEFAULT_MIN_HOLDING_TIME = 500
+        self.DEFAULT_MAX_HOLDING_TIME = 1000
         # Node position and destination information.
         self.origin_node = None #current origin
         self.last_origin_node = None # last recorded origin
@@ -78,15 +82,22 @@ class Car:
         self.final_destination_node = None # final destination
         self.node_paths = None # collection of node paths to take by the shortest path finding algorithm
         self.next_edge = None
-        #Attributes
+        # Attributes
+        ## Fundamental Attributes
         self.speed = 1 # put range of numbers for variability
-        self.car = None # Car canvas object itself
+        self.car_canvas = None # Car canvas object itself
         self.car_radius = 3 # Car canvas radius size
         self.wait_time = 0
+        ### Attributes kwargs
+        # self.holding_time = kwargs['holding_time'] if 'holding_time' in kwargs.keys() else np.clip(np.random.normal(loc=mean_value, scale=std_dev), 500, 1000)
+        mean_value = (self.DEFAULT_MIN_HOLDING_TIME / self.DEFAULT_MAX_HOLDING_TIME) / 2
+        std_dev = 100
+        self.holding_time = int(np.clip(np.random.normal(loc=mean_value, scale=std_dev), self.DEFAULT_MIN_HOLDING_TIME, self.DEFAULT_MAX_HOLDING_TIME))
         # States
         self.arrived = False
         self.is_spawned = False
         self.is_moving = False
+        self.is_parked = False
         # Awareness Attributes
         self.light_observation_distance = 5
         self.car_collision_observe_distance = 8
@@ -102,11 +113,11 @@ class Car:
         self.pos_y = y
 
         choice_color = random.choice(color_list)
-        self.car = canvas.create_oval(x0, y0, x1, y1, fill=choice_color)
+        self.car_canvas = canvas.create_oval(x0, y0, x1, y1, fill=choice_color)
         # self.car.bind("<Enter>", self.__on_hover)
 
     def get_coords(self, xy_only=True):
-        x0, y0, x1, y1 = canvas.coords(self.car)
+        x0, y0, x1, y1 = canvas.coords(self.car_canvas)
         if xy_only:
             return x0, y0
         else:
@@ -121,7 +132,7 @@ class Car:
         x1 = x + self.car_radius
         y1 = y + self.car_radius
         
-        canvas.coords(self.car, x0, y0, x1, y1)
+        canvas.coords(self.car_canvas, x0, y0, x1, y1)
 
     def __check_subsequence__(self, paths):
         paths_to_check = paths.copy()
@@ -213,46 +224,52 @@ class Car:
 
         if not self.is_moving:
             self.wait_time += 1 #registers at ticks which we'll have to convert to seconds
-        # This method is called when the distance is below the light observation distance threshold.
-        if distance > self.light_observation_distance:
-            __move()
 
-        elif distance > 0:
-
-            if "P" in str(self.next_destination_node): # If car is heading to a parking node
-                cars_occupied, edge_capacity = tm.manage_parking(self, self.next_destination_node, how="inquire") # Check if parking is available
-            else:
-                cars_occupied, edge_capacity = tm.get_edge_traffic(self.next_edge)
-            
-            is_next_destination_available = True if cars_occupied < edge_capacity else False
-
-            if tm.destination_has_intersection(self.next_destination_node):
-                if tm.get_intersection_light_state(self.next_destination_node, self.origin_node) == "green" and is_next_destination_available:
-                    __move()
-            elif is_next_destination_available:
-                __move()
+        if self.is_parked:
+            self.holding_time -= 1
         else:
-            try:
-                if "P" in str(self.next_destination_node): #If the car is heading to a parking node
-                    tm.manage_parking(self, self.next_destination_node, how="add") # then add itself to the parking node
-                tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="remove")
+            # This method is called when the distance is below the light observation distance threshold.
+            if distance > self.light_observation_distance:
+                __move()
+
+            elif distance > 0:
+                if "P" in str(self.next_destination_node): # If car is heading to a parking node
+                    cars_occupied, edge_capacity = tm.manage_parking(self, self.next_destination_node, how="inquire") # Check if parking is available
+                else:
+                    cars_occupied, edge_capacity = tm.get_edge_traffic(self.next_edge)
                 
-                self.last_origin_node = self.origin_node
-                self.origin_node = self.next_destination_node
+                is_next_destination_available = True if cars_occupied < edge_capacity else False
 
-                # place recomputation of shortest path here
-                self.compute_shortest_path()
-                logging.info(f"Car {self.index} now heading to {self.next_destination_node} from {self.origin_node}")
+                if tm.destination_has_intersection(self.next_destination_node):
+                    if tm.get_intersection_light_state(self.next_destination_node, self.origin_node) == "green" and is_next_destination_available:
+                        __move()
+                elif is_next_destination_available:
+                    __move()
+            else:
+                try:
+                    if "P" in str(self.next_destination_node): #If the car is heading to a parking node
+                        tm.manage_parking(self, self.next_destination_node, how="add") # then add itself to the parking node
+                    tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="remove")
+                    
+                    self.last_origin_node = self.origin_node
+                    self.origin_node = self.next_destination_node
 
-                tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="add")
-                self.wait_time = 0;
+                    # place recomputation of shortest path here
+                    self.compute_shortest_path()
+                    logging.info(f"Car {self.index} now heading to {self.next_destination_node} from {self.origin_node}")
 
-            except StopIteration as e:
-                # print(f"StopIteration {self.next_destination_node}, {e}")
-                self.arrived = True
+                    tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="add")
 
-                #remove self after execution of final destination
-                self.remove_car()
+                except StopIteration as e:
+                    # print(f"StopIteration {self.origin_node}, {e}")
+                    self.wait_time = 0;
+                    if "P" in self.origin_node:
+                        self.is_parked = True
+                        self.change_car_state("hidden")
+                    else:
+                        self.arrived = True
+                        #remove self after execution of final destination
+                        self.remove_car()
             
     def set_origin(self, origin):
         """
@@ -265,9 +282,17 @@ class Car:
         destination (Integer): node index from intersection_nodes dictionary (e.g. 1)
         """
         self.final_destination_node = destination  
+    
+    def change_car_state(self, state):
+        CONST_VALID_STATES = ["hidden", "normal"]
+
+        if state in CONST_VALID_STATES:
+            canvas.itemconfig(self.car_canvas, state=state)
+        else:
+            raise KeyError(f"Value {state} invalid. Must be these choices {CONST_VALID_STATES}")
 
     def remove_car(self):
-        canvas.delete(self.car)
+        canvas.delete(self.car_canvas)
 
 """
 Create network graph representation
@@ -286,7 +311,7 @@ class TrafficManager():
         self.edges = None
         self.intersection_states = {}
         self.intersection_radius = 4
-        self.default_intersection_time = 300
+        self.CONST_DEFAULT_INTERSECTION_TIME = 300
 
         # kwargs
         self.parking_capacities = kwargs['parking_capacities'] if 'parking_capacities' in kwargs.keys() else None
@@ -321,7 +346,7 @@ class TrafficManager():
         self.intersection_states[intersection_node][neighboring_node]["color"] = color_state
 
         #set timer
-        self.intersection_states[intersection_node][neighboring_node]["timer"] = self.default_intersection_time if timer is None else timer
+        self.intersection_states[intersection_node][neighboring_node]["timer"] = self.CONST_DEFAULT_INTERSECTION_TIME if timer is None else timer
 
     def get_intersection_light_state(self, intersection_node, neighboring_node):
         """
@@ -410,7 +435,7 @@ class TrafficManager():
                         color_state = "red"
                     self.intersection_states[n][neighbor] = {
                         "color": color_state,
-                        "timer": self.default_intersection_time
+                        "timer": self.CONST_DEFAULT_INTERSECTION_TIME
                     }
 
                     # color_state = "red"
@@ -568,7 +593,7 @@ def car_movement_logic(each_car):
 
 def car_task(env):
     while True:
-        with ThreadPoolExecutor(max_workers=64) as executor:
+        with ThreadPoolExecutor(max_workers=128) as executor:
             # Execute the car_movement_logic for each car concurrently in multiple threads
             executor.map(car_movement_logic, cars)
 
@@ -586,6 +611,27 @@ def traffic_manager_task(env):
                 tm.intersection_states[each_intersection][each_neighbor]["timer"] -= 1
         yield env.timeout(1)
 
+# Manages car parking behaviors such as staying or leaving based on a normal distribution
+def parking_manager_task(env):
+    while True:
+        for each_parking_lot in tm.parking_nodes:
+            for each_car in tm.parking_nodes[each_parking_lot]['cars_occupied']:
+                if each_car.holding_time <= 0:
+                    # remove self from parking
+                    tm.manage_parking(each_car, each_car.origin_node, "remove")
+                    each_car.change_car_state("normal")
+
+                    # set final destination
+                    entry_nodes = list(tm.entry_nodes)
+                    final_destination = random.choice(entry_nodes)
+                    each_car.set_destination(final_destination)
+                    each_car.compute_shortest_path()
+                    each_car.is_parked = False
+                    print(f"Car {each_car.index} is leaving from {each_car.origin_node} heading to {each_car.final_destination_node}")
+                    # cars_occupied, edge_capacity = tm.get_edge_traffic((each_car.origin_node, each_car.next_destination_node))
+        yield env.timeout(1)
+
+
 fps = 60
 
 def run():
@@ -593,6 +639,7 @@ def run():
     env.process(car_spawn_task(env))
     env.process(car_task(env))
     env.process(traffic_manager_task(env))
+    env.process(parking_manager_task(env))
     env.run()
 
 thread = threading.Thread(target=run)
