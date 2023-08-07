@@ -218,18 +218,23 @@ class Car:
             __move()
 
         elif distance > 0:
-            # if self.origin_node == 17 and self.next_destination_node == 11:
-            #     print("SHIT")
-            cars_occupied, edge_capacity = tm.get_edge_traffic(self.next_edge)
-            is_next_edge_available = True if cars_occupied < edge_capacity else False
+
+            if "P" in str(self.next_destination_node): # If car is heading to a parking node
+                cars_occupied, edge_capacity = tm.manage_parking(self, self.next_destination_node, how="inquire") # Check if parking is available
+            else:
+                cars_occupied, edge_capacity = tm.get_edge_traffic(self.next_edge)
+            
+            is_next_destination_available = True if cars_occupied < edge_capacity else False
 
             if tm.destination_has_intersection(self.next_destination_node):
-                if tm.get_intersection_light_state(self.next_destination_node, self.origin_node) == "green" and is_next_edge_available:
+                if tm.get_intersection_light_state(self.next_destination_node, self.origin_node) == "green" and is_next_destination_available:
                     __move()
-            elif is_next_edge_available:
+            elif is_next_destination_available:
                 __move()
         else:
             try:
+                if "P" in str(self.next_destination_node): #If the car is heading to a parking node
+                    tm.manage_parking(self, self.next_destination_node, how="add") # then add itself to the parking node
                 tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="remove")
                 
                 self.last_origin_node = self.origin_node
@@ -298,7 +303,7 @@ class TrafficManager():
 
         #end kwargs
         self.entry_nodes = []
-        self.parking_nodes = []
+        self.parking_nodes = {} #dictionary because we need to contain occupied cars and capacity
 
         self.entry_edges = []
 
@@ -363,7 +368,12 @@ class TrafficManager():
             if "E" in str(index):
                 self.entry_nodes.append(index)
             elif "P" in str(index):
-                self.parking_nodes.append(index)
+                # self.parking_nodes.append(index)
+                # self.parking_nodes[index] = (0, self.parking_capacities[index]) #Tuple of (cars_occupied, max capacity)
+                self.parking_nodes[index] = {
+                    "cars_occupied": [],
+                    "max_capacity": self.parking_capacities[index]
+                }
             self.G.add_node(index, pos=pos)
 
         # Add edges to the graph.
@@ -433,6 +443,16 @@ class TrafficManager():
             # print(f"Adjusting weight of {orientation} to {self.edges[orientation]['weight']}")
         else:
             raise KeyError(f"Cannot find the edge {(origin, destination)} or {(destination,origin)}")
+
+    def manage_parking(self, car_object: Car, parking_node: int, how: str):
+        if how == "add":
+            self.parking_nodes[parking_node]["cars_occupied"].append(car_object)
+        elif how == "remove":
+            self.parking_nodes[parking_node]["cars_occupied"].remove(car_object)
+        elif how == "inquire": #Inquire count of cars occupied
+            return len(self.parking_nodes[parking_node]["cars_occupied"]), self.parking_nodes[parking_node]["max_capacity"]
+        else:
+            raise KeyError(f"Invalid 'how' value, must be 'add', 'remove' or 'inquire' (returns an int (number of cars parked), int (max capacity))")
         
     def get_cars_in_edge(self, origin, destination) -> list[Car]:
         orientation = (origin, destination)
@@ -516,8 +536,8 @@ def car_spawn_task(env):
                 origin = entry_choice[0]
                 immediate_destination = entry_choice[1]
                 
-                entry_nodes = list(tm.entry_nodes)
-                parking_nodes = list(tm.parking_nodes)
+                # entry_nodes = list(tm.entry_nodes)
+                parking_nodes = list(tm.parking_nodes.keys())
 
                 # entry_nodes.remove(origin)
 

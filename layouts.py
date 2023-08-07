@@ -120,9 +120,9 @@ def bgc_layout():
     # }
     
     parking_capacities = {
-        "P1": 100,
-        "P2": 200,
-        "P3": 300
+        "P1": 50,
+        "P2": 50,
+        "P3": 50
     }
 
     return intersection_nodes, edge_list, parking_capacities
