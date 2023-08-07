@@ -225,51 +225,48 @@ class Car:
         if not self.is_moving:
             self.wait_time += 1 #registers at ticks which we'll have to convert to seconds
 
-        if self.is_parked:
-            self.holding_time -= 1
-        else:
-            # This method is called when the distance is below the light observation distance threshold.
-            if distance > self.light_observation_distance:
-                __move()
+        # This method is called when the distance is below the light observation distance threshold.
+        if distance > self.light_observation_distance:
+            __move()
 
-            elif distance > 0:
-                if "P" in str(self.next_destination_node): # If car is heading to a parking node
-                    cars_occupied, edge_capacity = tm.manage_parking(self, self.next_destination_node, how="inquire") # Check if parking is available
-                else:
-                    cars_occupied, edge_capacity = tm.get_edge_traffic(self.next_edge)
-                
-                is_next_destination_available = True if cars_occupied < edge_capacity else False
-
-                if tm.destination_has_intersection(self.next_destination_node):
-                    if tm.get_intersection_light_state(self.next_destination_node, self.origin_node) == "green" and is_next_destination_available:
-                        __move()
-                elif is_next_destination_available:
-                    __move()
+        elif distance > 0:
+            if "P" in str(self.next_destination_node): # If car is heading to a parking node
+                cars_occupied, edge_capacity = tm.manage_parking(self, self.next_destination_node, how="inquire") # Check if parking is available
             else:
-                try:
-                    if "P" in str(self.next_destination_node): #If the car is heading to a parking node
-                        tm.manage_parking(self, self.next_destination_node, how="add") # then add itself to the parking node
-                    tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="remove")
-                    
-                    self.last_origin_node = self.origin_node
-                    self.origin_node = self.next_destination_node
+                cars_occupied, edge_capacity = tm.get_edge_traffic(self.next_edge)
+            
+            is_next_destination_available = True if cars_occupied < edge_capacity else False
 
-                    # place recomputation of shortest path here
-                    self.compute_shortest_path()
-                    logging.info(f"Car {self.index} now heading to {self.next_destination_node} from {self.origin_node}")
+            if tm.destination_has_intersection(self.next_destination_node):
+                if tm.get_intersection_light_state(self.next_destination_node, self.origin_node) == "green" and is_next_destination_available:
+                    __move()
+            elif is_next_destination_available:
+                __move()
+        else:
+            try:
+                if "P" in str(self.next_destination_node): #If the car is heading to a parking node
+                    tm.manage_parking(self, self.next_destination_node, how="add") # then add itself to the parking node
+                tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="remove")
+                
+                self.last_origin_node = self.origin_node
+                self.origin_node = self.next_destination_node
 
-                    tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="add")
+                # place recomputation of shortest path here
+                self.compute_shortest_path()
+                logging.info(f"Car {self.index} now heading to {self.next_destination_node} from {self.origin_node}")
 
-                except StopIteration as e:
-                    # print(f"StopIteration {self.origin_node}, {e}")
-                    self.wait_time = 0;
-                    if "P" in self.origin_node:
-                        self.is_parked = True
-                        self.change_car_state("hidden")
-                    else:
-                        self.arrived = True
-                        #remove self after execution of final destination
-                        self.remove_car()
+                tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="add")
+
+            except StopIteration as e:
+                # print(f"StopIteration {self.origin_node}, {e}")
+                self.wait_time = 0;
+                if "P" in self.origin_node:
+                    self.is_parked = True
+                    self.change_car_state("hidden")
+                else:
+                    self.arrived = True
+                    #remove self after execution of final destination
+                    self.remove_car()
             
     def set_origin(self, origin):
         """
@@ -585,11 +582,24 @@ def car_spawn_task(env):
          
 car_task_delay = 1
 def car_movement_logic(each_car):
-    if not each_car.is_spawned:
-        # Wait for spawn
-        pass
-    else:
+    if each_car.index == 3 and each_car.origin_node == 'P2' and each_car.final_destination_node == 'E3':
+        print("LETS BREAKING")
+    if each_car.is_spawned and not each_car.is_parked:
         each_car.travel()
+    elif each_car.is_parked:
+        if each_car.holding_time <= 0:
+            tm.manage_parking(each_car, each_car.origin_node, "remove")
+            each_car.change_car_state("normal")
+
+            # set final destination
+            entry_nodes = list(tm.entry_nodes)
+            final_destination = random.choice(entry_nodes)
+            each_car.set_destination(final_destination)
+            each_car.compute_shortest_path()
+            each_car.is_parked = False
+            print(f"Car {each_car.index} is leaving from {each_car.origin_node} heading to {each_car.final_destination_node}")
+            
+        each_car.holding_time -= 1
 
 def car_task(env):
     while True:
@@ -612,24 +622,24 @@ def traffic_manager_task(env):
         yield env.timeout(1)
 
 # Manages car parking behaviors such as staying or leaving based on a normal distribution
-def parking_manager_task(env):
-    while True:
-        for each_parking_lot in tm.parking_nodes:
-            for each_car in tm.parking_nodes[each_parking_lot]['cars_occupied']:
-                if each_car.holding_time <= 0:
-                    # remove self from parking
-                    tm.manage_parking(each_car, each_car.origin_node, "remove")
-                    each_car.change_car_state("normal")
+# def parking_manager_task(env):
+#     while True:
+#         for each_parking_lot in tm.parking_nodes:
+#             for each_car in tm.parking_nodes[each_parking_lot]['cars_occupied']:
+#                 if each_car.holding_time <= 0:
+#                     # remove self from parking
+#                     tm.manage_parking(each_car, each_car.origin_node, "remove")
+#                     each_car.change_car_state("normal")
 
-                    # set final destination
-                    entry_nodes = list(tm.entry_nodes)
-                    final_destination = random.choice(entry_nodes)
-                    each_car.set_destination(final_destination)
-                    each_car.compute_shortest_path()
-                    each_car.is_parked = False
-                    print(f"Car {each_car.index} is leaving from {each_car.origin_node} heading to {each_car.final_destination_node}")
-                    # cars_occupied, edge_capacity = tm.get_edge_traffic((each_car.origin_node, each_car.next_destination_node))
-        yield env.timeout(1)
+#                     # set final destination
+#                     entry_nodes = list(tm.entry_nodes)
+#                     final_destination = random.choice(entry_nodes)
+#                     each_car.set_destination(final_destination)
+#                     each_car.compute_shortest_path()
+#                     each_car.is_parked = False
+#                     print(f"Car {each_car.index} is leaving from {each_car.origin_node} heading to {each_car.final_destination_node}")
+#                     # cars_occupied, edge_capacity = tm.get_edge_traffic((each_car.origin_node, each_car.next_destination_node))
+#         yield env.timeout(1)
 
 
 fps = 60
@@ -639,7 +649,7 @@ def run():
     env.process(car_spawn_task(env))
     env.process(car_task(env))
     env.process(traffic_manager_task(env))
-    env.process(parking_manager_task(env))
+    # env.process(parking_manager_task(env))
     env.run()
 
 thread = threading.Thread(target=run)
