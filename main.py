@@ -140,7 +140,7 @@ class Car:
         """
         Compute the car agent's shortest path using NetworkX's shortest_path function (default: Djikstra)
         """
-        print(self.origin_node, self.final_destination_node)        
+        # print(self.origin_node, self.final_destination_node)        
         paths = nx.dijkstra_path(tm.G, self.origin_node, self.final_destination_node, weight='weight')
         self.next_edge = None
         if tm.disallowed_sequences is not None:
@@ -283,17 +283,23 @@ class TrafficManager():
         self.intersection_radius = 4
         self.default_intersection_time = 300
 
+        # kwargs
+        self.parking_capacities = kwargs['parking_capacities'] if 'parking_capacities' in kwargs.keys() else None
+        self.CONST_SYSTEM_DEFAULT_PARKING_CAPACITY = 100
+        if self.parking_capacities is None: print("No Parking Capacities found. All parking nodes will default to {self.CONST_SYSTEM_DEFAULT_PARKING_CAPACITY}"); self.parking_capacities = self.CONST_SYSTEM_DEFAULT_PARKING_CAPACITY
+
         self.disallowed_sequences = kwargs['disallowed_sequences'] if 'disallowed_sequences' in kwargs.keys() else None
         if self.disallowed_sequences is None: print("No Disallowed path sequences found.")
 
         self.default_edge_capacity = kwargs['default_edge_capacity'] if 'default_edge_capacity' in kwargs.keys() else None
         self.CONST_SYSTEM_DEFAULT_EDGE_CAPACITY = 10 #This will only be used if the user did not defined a default edge capacity of edge entries with no capacity values
 
-        if self.default_edge_capacity is None: 
-            print(f"Default Edge Capacity not defined, If there are no edge capacity values found in edge_list. The value will default to {self.CONST_SYSTEM_DEFAULT_EDGE_CAPACITY}. This might emerge wierd behaviors for the entire system.")
-            self.default_edge_capacity = self.CONST_SYSTEM_DEFAULT_EDGE_CAPACITY
+        if self.default_edge_capacity is None: print(f"Default Edge Capacity not defined. All undefined edge capacity values will default to {self.CONST_SYSTEM_DEFAULT_EDGE_CAPACITY}. This might emerge wierd behaviors for the entire system."); self.default_edge_capacity = self.CONST_SYSTEM_DEFAULT_EDGE_CAPACITY
 
+        #end kwargs
         self.entry_nodes = []
+        self.parking_nodes = []
+
         self.entry_edges = []
 
         self.__build_network__()
@@ -354,8 +360,10 @@ class TrafficManager():
         # Add a node to the graph.
         for index, pos in self.intersection_nodes.items():
             # Add index to the list of entries in the entry_nodes list.
-            if "E" in str(index) or "P" in str(index):
+            if "E" in str(index):
                 self.entry_nodes.append(index)
+            elif "P" in str(index):
+                self.parking_nodes.append(index)
             self.G.add_node(index, pos=pos)
 
         # Add edges to the graph.
@@ -371,7 +379,7 @@ class TrafficManager():
                 self.G.add_edge(edges[1], edges[0])
             elif any("P" in str(edge) for edge in edges):
                 if "P" in str(edges[0]): #this one is more likely to happen for now
-                    self.entry_edges.append((edges[0], edges[1]))
+                    # self.entry_edges.append((edges[0], edges[1]))
 
                     #add the inverse edge of the P's as well
                     self.edges[(edges[1], edges[0])] = {'cars_occupied': [], 'weight': 0, 'max_capacity': edges[2] if len(edges) > 2 else self.default_edge_capacity}
@@ -473,16 +481,17 @@ class TrafficManager():
             canvas.create_line(start_x, start_y, end_x, end_y, width=lane_width)
 
 
-intersection_nodes, edge_list = bgc_layout()
+intersection_nodes, edge_list, parking_capacities = bgc_layout()
 # intersection_nodes, edge_list = bgc_short_test()
 tm = TrafficManager(intersection_nodes, edge_list, 
+                    parking_capacities=parking_capacities,
                     # disallowed_sequences=disallowed_sequences, 
                     default_edge_capacity=10)
 
 """
 Draw cars in the grid, and assign their origin and destination
 """
-number_of_cars = 500
+number_of_cars = 2000
 cars = []
 
 #create a text canvas widget
@@ -503,15 +512,18 @@ def car_spawn_task(env):
         for each_car in cars:
             if not each_car.is_spawned:
                 canvas_index += 1
-                edge_choice = list(random.choice(list(tm.entry_edges)))
-                origin = edge_choice[0]
-                immediate_destination = edge_choice[1]
+                entry_choice = list(random.choice(list(tm.entry_edges)))
+                origin = entry_choice[0]
+                immediate_destination = entry_choice[1]
                 
                 entry_nodes = list(tm.entry_nodes)
+                parking_nodes = list(tm.parking_nodes)
 
-                entry_nodes.remove(origin)
+                # entry_nodes.remove(origin)
 
-                final_destination = random.choice(entry_nodes)
+                #final destination can either be entry nodes or parking nodes
+                # final_destination = random.choice(entry_nodes)
+                final_destination = random.choice(parking_nodes)
 
                 cars_occupied, edge_capacity = tm.get_edge_traffic((origin, immediate_destination))
 
