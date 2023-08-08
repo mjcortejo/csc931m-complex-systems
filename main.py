@@ -536,7 +536,7 @@ tm = TrafficManager(intersection_nodes, edge_list,
 """
 Draw cars in the grid, and assign their origin and destination
 """
-number_of_cars = 2000
+number_of_cars = 500
 cars = []
 
 #create a text canvas widget
@@ -591,20 +591,24 @@ def car_movement_logic(each_car):
     elif each_car.is_parked:
         if each_car.holding_time <= 0:
             # First we remove the car from the parking lot
-            tm.manage_parking(each_car, each_car.origin_node, "remove")
-            each_car.change_car_state("normal")
-
-            # set Origins and Destinations
-            entry_nodes = list(tm.entry_nodes)
-            final_destination = random.choice(entry_nodes)
-            each_car.set_destination(final_destination)
-
             next_destination_node = tm.parking_nodes[each_car.origin_node]["exit_node"] #set the parking's exit node as the next immediate destination
+            cars_occupied, edge_capacity = tm.get_edge_traffic((each_car.origin_node, next_destination_node))
 
-            # Then add to edge capacity
-            tm.manage_car_from_edge(each_car, each_car.origin_node, next_destination_node, how="add")
-            each_car.compute_shortest_path()
-            each_car.is_parked = False
+            if cars_occupied <= edge_capacity:
+                tm.manage_parking(each_car, each_car.origin_node, "remove")
+                each_car.change_car_state("normal")
+
+                # set Origins and Destinations
+                entry_nodes = list(tm.entry_nodes)
+                final_destination = random.choice(entry_nodes)
+                each_car.set_destination(final_destination)
+
+                # next_destination_node = tm.parking_nodes[each_car.origin_node]["exit_node"] #set the parking's exit node as the next immediate destination
+
+                # Then add to edge capacity
+                tm.manage_car_from_edge(each_car, each_car.origin_node, next_destination_node, how="add")
+                each_car.compute_shortest_path()
+                each_car.is_parked = False
 
             # We should check edge capacity first before releasing the is_parking boolean to False
             # print(f"Car {each_car.index} is leaving from {each_car.origin_node} heading to {each_car.final_destination_node}")
