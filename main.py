@@ -8,10 +8,12 @@ import threading
 import numpy as np
 import logging
 from layouts import *
+from logger import Logger
 
 from concurrent.futures import ThreadPoolExecutor
 
 random.seed(27)
+np.random.seed(27)
 
 """
 Now drawing the road network using the graph
@@ -89,10 +91,15 @@ class Car:
         self.car_radius = 3 # Car canvas radius size
         self.wait_time = 0
         ### Attributes kwargs
-        # self.holding_time = kwargs['holding_time'] if 'holding_time' in kwargs.keys() else np.clip(np.random.normal(loc=mean_value, scale=std_dev), 500, 1000)
-        mean_value = (self.DEFAULT_MIN_HOLDING_TIME / self.DEFAULT_MAX_HOLDING_TIME) / 2
+        # mean_value = (self.DEFAULT_MIN_HOLDING_TIME / self.DEFAULT_MAX_HOLDING_TIME) / 2
+        mean_value = 600
         std_dev = 100
         self.holding_time = int(np.clip(np.random.normal(loc=mean_value, scale=std_dev), self.DEFAULT_MIN_HOLDING_TIME, self.DEFAULT_MAX_HOLDING_TIME))
+
+        #### Removed highly aggregated min clipped values
+        self.holding_time = np.delete(self.holding_time, np.argwhere( (self.holding_time == self.DEFAULT_MIN_HOLDING_TIME)))
+        self.holding_time = np.delete(self.holding_time, np.argwhere( (self.holding_time == self.DEFAULT_MAX_HOLDING_TIME)))
+
         # self.holding_time = 2
         # States
         self.arrived = False
@@ -585,7 +592,6 @@ def car_spawn_task(env):
          
 car_task_delay = 1
 def car_movement_logic(each_car):
-
     if each_car.is_spawned and not each_car.is_parked:
         each_car.travel()
     elif each_car.is_parked:
@@ -617,7 +623,7 @@ def car_movement_logic(each_car):
 
 def car_task(env):
     while True:
-        with ThreadPoolExecutor(max_workers=128) as executor:
+        with ThreadPoolExecutor(max_workers=64) as executor:
             # Execute the car_movement_logic for each car concurrently in multiple threads
             executor.map(car_movement_logic, cars)
 
@@ -635,6 +641,26 @@ def traffic_manager_task(env):
                 tm.intersection_states[each_intersection][each_neighbor]["timer"] -= 1
         yield env.timeout(1)
 
+logger = Logger()
+logger.setup_edge_logs(tm.edges)
+
+def log_traffic_data(each_edge):
+    cars_occupied, max_capacity = tm.get_edge_traffic(each_edge)
+    cars_in_edge = tm.get_cars_in_edge(*each_edge)
+
+    # Average time step
+    car_wait_avg = []
+    for each_car in cars_in_edge:
+        car_wait_avg.append(each_car.wait_time)
+    edge_log = (logger.time_step, cars_occupied, max_capacity)
+    logger.edge_volume[each_edge].append(edge_log)
+
+def log_task(env):
+    while True:
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            executor.map(log_traffic_data, tm.edges.keys())
+        yield env.timeout(logger.time_out)
+
 fps = 60
 
 def run():
@@ -642,6 +668,7 @@ def run():
     env.process(car_spawn_task(env))
     env.process(car_task(env))
     env.process(traffic_manager_task(env))
+    env.process(log_task(env))
     env.run()
 
 thread = threading.Thread(target=run)
