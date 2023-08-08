@@ -649,16 +649,21 @@ def log_traffic_data(each_edge):
     cars_in_edge = tm.get_cars_in_edge(*each_edge)
 
     # Average time step
-    car_wait_avg = []
-    for each_car in cars_in_edge:
-        car_wait_avg.append(each_car.wait_time)
-    edge_log = (logger.time_step, cars_occupied, max_capacity)
-    logger.edge_volume[each_edge].append(edge_log)
+    edge_wait_avg = np.mean([car.wait_time for car in cars_in_edge]) if cars_in_edge else 0.0
+
+    # Tuple format
+    # (Time step, List of car objects, Edge capacity, edge car wait average)
+    edge_log = (logger.time_step, cars_occupied, max_capacity, edge_wait_avg)
+
+    logger.log(each_edge, edge_log)
 
 def log_task(env):
     while True:
+        logger.step_time()
         with ThreadPoolExecutor(max_workers=8) as executor:
             executor.map(log_traffic_data, tm.edges.keys())
+
+        logger.compute_overall_wait_avg()
         yield env.timeout(logger.time_out)
 
 fps = 60
