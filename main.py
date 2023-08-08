@@ -7,6 +7,11 @@ import networkx as nx
 import threading
 import numpy as np
 import logging
+
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg,
+NavigationToolbar2Tk)
+
 from layouts import *
 from logger import Logger
 
@@ -20,14 +25,15 @@ Now drawing the road network using the graph
 """
 
 env = simpy.Environment()
+#Main canvas
 root = tk.Tk()
-# child = tk.Toplevel()
+child = tk.Toplevel()
 
 canvas = tk.Canvas(root, width=800, height=600)
-# child_canvas = tk.Canvas(child, width=500, height=1000)
+graph_canvas = tk.Canvas(child, width=800, height=600)
 
-# child_canvas.pack()
-canvas.pack()    
+graph_canvas.pack()
+canvas.pack()
 
 color_list = [
     "snow",
@@ -666,6 +672,28 @@ def log_task(env):
         logger.compute_overall_wait_avg()
         yield env.timeout(logger.time_out)
 
+def update_plot():
+    ax.clear()  # Clear the previous plot
+    ax.plot(logger.overall_wait_avg_data, marker='o')
+    ax.set_xlabel('Edge Index')
+    ax.set_ylabel('Average Wait Time')
+    fig_canvas.draw()  # Redraw the canvas
+
+def plot_task(env):
+    while True:
+        yield env.timeout(200)
+        update_plot()
+
+# Create a Matplotlib figure
+fig = Figure(figsize=(5, 4), dpi=100)
+ax = fig.add_subplot(111)
+
+# Embed the Matplotlib figure in a Tkinter Canvas
+fig_canvas = FigureCanvasTkAgg(fig, master=graph_canvas)
+canvas_widget = fig_canvas.get_tk_widget()
+canvas_widget.pack()
+
+
 fps = 60
 
 def run():
@@ -674,6 +702,7 @@ def run():
     env.process(car_task(env))
     env.process(traffic_manager_task(env))
     env.process(log_task(env))
+    env.process(plot_task(env))
     env.run()
 
 thread = threading.Thread(target=run)
