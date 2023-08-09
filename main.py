@@ -531,10 +531,20 @@ for index in range(number_of_cars):
 
 spawn_delay = 5
 
+travel_intent = [
+    "parking", # Initiates E Entry Point to P Parking Point
+    "dropoff", # Initiates E to random node, but stops between the middle of the origin and destination as it approaches its final destination
+    "passthru" # Initiates E to another E
+]
+
 def car_spawn_task(env):
     while True:
         for each_car in cars:
             if not each_car.is_spawned:
+
+                selected_intent = np.random.choice(travel_intent, 1, p=[0.50, 0.25, 0.25])
+                print(selected_intent)
+
                 entry_choice = list(random.choice(list(tm.entry_edges)))
                 origin = entry_choice[0]
                 immediate_destination = entry_choice[1]
