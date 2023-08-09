@@ -7,60 +7,56 @@ import networkx as nx
 import threading
 import numpy as np
 import logging
+
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg,
+NavigationToolbar2Tk)
+
 from layouts import *
+from logger import Logger
+from utils import ColorCollection
 
 from concurrent.futures import ThreadPoolExecutor
 
-random.seed(27)
+random_seed = 27
 
-"""
-Now drawing the road network using the graph
-"""
+random.seed(random_seed)
+np.random.seed(random_seed)
 
 env = simpy.Environment()
-root = tk.Tk()
-# child = tk.Toplevel()
+
+root = tk.Tk() # Main canvas
+child = tk.Toplevel() # Graph canvas
 
 canvas = tk.Canvas(root, width=800, height=600)
-# child_canvas = tk.Canvas(child, width=500, height=1000)
+graph_canvas = tk.Canvas(child, width=800, height=600)
 
-# child_canvas.pack()
-canvas.pack()    
+graph_canvas.pack()
+canvas.pack()
 
-color_list = [
-    "snow",
-    "ghost white",
-    "gainsboro",
-    "old lace",
-    "linen",
-    "antique white",
-    "papaya whip",
-    "blanched almond",
-    "bisque",
-    "peach puff",
-    "navajo white",
-    "lemon chiffon",
-    "mint cream",
-    "azure",
-    "alice blue",
-    "lavender",
-    "lavender blush",
-    "misty rose",
-    "turquoise", 
-    "aquamarine", 
-    "powder blue", 
-    "sky blue", 
-    "steel blue", 
-    "cadet blue", 
-    "deep sky blue", 
-    "dodger blue", 
-    "cornflower blue", 
-    "medium aquamarine", 
-    "medium turquoise", 
-    "light sea green", 
-    "medium sea green"
-]
+# https://stackoverflow.com/questions/3584805/what-does-the-argument-mean-in-fig-add-subplot111
 
+# Create a Matplotlib figure
+
+# The three numbers are subplot grid parameters encoded as a single integer. For example, "111" means "1x1 grid, first subplot" and "234" means "2x3 grid, 4th subplot".
+fig = Figure(figsize=(20, 10), dpi=100)
+wait_ax = fig.add_subplot(311)
+volume_ax = fig.add_subplot(312)
+car_exit_ax = fig.add_subplot(313)
+
+# Embed the Matplotlib figure in a Tkinter Canvas
+fig_canvas = FigureCanvasTkAgg(fig, master=graph_canvas)
+canvas_widget = fig_canvas.get_tk_widget()
+canvas_widget.pack()
+
+fps = 60
+max_duration=50000
+
+logger = Logger()
+number_of_cars = 800
+cars = [] #used to store car objects generated using the Car class
+
+color_collection = ColorCollection(random_seed=random_seed)
 
 """
 Car Class
@@ -87,13 +83,19 @@ class Car:
         self.speed = 1 # put range of numbers for variability
         self.car_canvas = None # Car canvas object itself
         self.car_radius = 3 # Car canvas radius size
+        # self.car_color = random.choice(color_list)
+        self.car_color = color_collection.get_random_color()
+
         self.wait_time = 0
         ### Attributes kwargs
-        # self.holding_time = kwargs['holding_time'] if 'holding_time' in kwargs.keys() else np.clip(np.random.normal(loc=mean_value, scale=std_dev), 500, 1000)
-        mean_value = (self.DEFAULT_MIN_HOLDING_TIME / self.DEFAULT_MAX_HOLDING_TIME) / 2
-        std_dev = 100
+        mean_value = kwargs['mean_value'] if 'mean_value' in kwargs.keys() else (self.DEFAULT_MIN_HOLDING_TIME / self.DEFAULT_MAX_HOLDING_TIME) / 2
+        std_dev = kwargs['std_dev'] if 'std_dev' in kwargs.keys() else 100
         self.holding_time = int(np.clip(np.random.normal(loc=mean_value, scale=std_dev), self.DEFAULT_MIN_HOLDING_TIME, self.DEFAULT_MAX_HOLDING_TIME))
-        # self.holding_time = 2
+
+        #### Removed highly aggregated min clipped values
+        self.holding_time = np.delete(self.holding_time, np.argwhere( (self.holding_time == self.DEFAULT_MIN_HOLDING_TIME))) # Removing values with exactly as minimum holding time
+        self.holding_time = np.delete(self.holding_time, np.argwhere( (self.holding_time == self.DEFAULT_MAX_HOLDING_TIME))) # Removing values with exactly as maximum holding time
+
         # States
         self.arrived = False
         self.is_spawned = False
@@ -105,6 +107,9 @@ class Car:
         self.cars_in_front = None # collection of other car objects
     
     def place_car(self, x, y):
+        """
+        Draw cars in the grid, using their origin position
+        """
         x0 = x - self.car_radius
         y0 = y - self.car_radius
         x1 = x + self.car_radius
@@ -113,8 +118,7 @@ class Car:
         self.pos_x = x
         self.pos_y = y
 
-        choice_color = random.choice(color_list)
-        self.car_canvas = canvas.create_oval(x0, y0, x1, y1, fill=choice_color)
+        self.car_canvas = canvas.create_oval(x0, y0, x1, y1, fill=self.car_color)
         # self.car.bind("<Enter>", self.__on_hover)
 
     def get_coords(self, xy_only=True):
@@ -123,9 +127,6 @@ class Car:
             return x0, y0
         else:
             return x0 + self.car_radius, y0 + self.car_radius, x1 - self.car_radius, y1 - self.car_radius
-        
-    # def __on_hover(self, event):
-    #     print(f'You hovered car at Car {self.index} {event.x} X {event.y}.')
     
     def _move_to(self, x, y):
         x0 = x - self.car_radius
@@ -152,7 +153,6 @@ class Car:
         """
         Compute the car agent's shortest path using NetworkX's shortest_path function (default: Djikstra)
         """
-        # print(self.origin_node, self.final_destination_node)        
         paths = nx.dijkstra_path(tm.G, self.origin_node, self.final_destination_node, weight='weight')
         self.next_edge = None
         if tm.disallowed_sequences is not None:
@@ -197,7 +197,6 @@ class Car:
         def __move():
             """
              Move the agent to the next position based on the speed and distance.
-            #WARN: Starting to get performance issues
             """
 
             # Get the cars that are in the same edge as the current car. but also remove self in that list to prevent measuring its own position
@@ -292,9 +291,6 @@ class Car:
     def remove_car(self):
         canvas.delete(self.car_canvas)
 
-"""
-Create network graph representation
-"""
 class TrafficManager():
     def __init__(self, intersection_nodes, edge_list, **kwargs):
         """
@@ -379,7 +375,7 @@ class TrafficManager():
 
     def __build_network__(self):
         """
-         Builds the network
+         Builds the network using the edges provided
         """
 
         # self.edges = {i: {'cars_occupied': [], 'weight': 0} for i in self.edge_list}
@@ -438,9 +434,6 @@ class TrafficManager():
                         "timer": self.CONST_DEFAULT_INTERSECTION_TIME
                     }
 
-                    # color_state = "red"
-                    # print(f"Setting {(n, neighbor)} to {color_state}")
-
         # Draw the intersection of all nodes in the intersection_nodes.
         for index, pos in self.intersection_nodes.items():
             self.__draw_intersection__(*pos, index=index)
@@ -456,10 +449,8 @@ class TrafficManager():
         if orientation:
             if how == "add":
                 self.edges[orientation]['cars_occupied'].append(car_object)
-                # print(f"Added {car_object.index} to {orientation}")
             elif how == "remove":
                 self.edges[orientation]['cars_occupied'].remove(car_object)
-                # print(f"Removing {car_object.index} to {orientation}")
             else: raise Exception("Invalid 'how' value, must be 'add' or 'remove'")
 
             # Dynamic Weighting mechanism
@@ -532,31 +523,18 @@ tm = TrafficManager(intersection_nodes, edge_list,
                     parking_capacities=parking_capacities,
                     # disallowed_sequences=disallowed_sequences, 
                     default_edge_capacity=10)
-
-"""
-Draw cars in the grid, and assign their origin and destination
-"""
-number_of_cars = 500
-cars = []
-
-#create a text canvas widget
-canvas_index = 0
-logs = {}
-
+logger.setup_edge_logs(tm.edges)
 
 for index in range(number_of_cars):
     car = Car(index)
     cars.append(car)
 
 spawn_delay = 5
-y_offset = 50
 
 def car_spawn_task(env):
-    global canvas_index
     while True:
         for each_car in cars:
             if not each_car.is_spawned:
-                canvas_index += 1
                 entry_choice = list(random.choice(list(tm.entry_edges)))
                 origin = entry_choice[0]
                 immediate_destination = entry_choice[1]
@@ -577,51 +555,45 @@ def car_spawn_task(env):
                 else:
                     logging.info(f"{(origin, immediate_destination)} cannot spawn due to full")
 
-                #generate text widget
-                # text_log = child_canvas.create_text(0, y_offset * canvas_index + 10, anchor='nw', text="START")
-                # logs[each_car.index] = text_log
-
             yield env.timeout(spawn_delay)
          
 car_task_delay = 1
 def car_movement_logic(each_car):
-
     if each_car.is_spawned and not each_car.is_parked:
         each_car.travel()
     elif each_car.is_parked:
         if each_car.holding_time <= 0:
-            # First we remove the car from the parking lot
             next_destination_node = tm.parking_nodes[each_car.origin_node]["exit_node"] #set the parking's exit node as the next immediate destination
             cars_occupied, edge_capacity = tm.get_edge_traffic((each_car.origin_node, next_destination_node))
 
             if cars_occupied <= edge_capacity:
+                # First we remove the car from the parking lot
                 tm.manage_parking(each_car, each_car.origin_node, "remove")
                 each_car.change_car_state("normal")
 
-                # set Origins and Destinations
+                # Set Origins and Destinations
                 entry_nodes = list(tm.entry_nodes)
                 final_destination = random.choice(entry_nodes)
                 each_car.set_destination(final_destination)
 
-                # next_destination_node = tm.parking_nodes[each_car.origin_node]["exit_node"] #set the parking's exit node as the next immediate destination
-
                 # Then add to edge capacity
                 tm.manage_car_from_edge(each_car, each_car.origin_node, next_destination_node, how="add")
                 each_car.compute_shortest_path()
-                each_car.is_parked = False
-
-            # We should check edge capacity first before releasing the is_parking boolean to False
-            # print(f"Car {each_car.index} is leaving from {each_car.origin_node} heading to {each_car.final_destination_node}")
+                each_car.is_parked = False # Release flag
             
         each_car.holding_time -= 1
 
+cars_exited = 0
+
 def car_task(env):
+    global cars_exited
     while True:
-        with ThreadPoolExecutor(max_workers=128) as executor:
+        with ThreadPoolExecutor(max_workers=64) as executor:
             # Execute the car_movement_logic for each car concurrently in multiple threads
             executor.map(car_movement_logic, cars)
 
         # Remove completed cars
+        cars_exited += len([each_car for each_car in cars if each_car.arrived])
         cars[:] = [each_car for each_car in cars if not each_car.arrived]
 
         yield env.timeout(car_task_delay)
@@ -634,15 +606,66 @@ def traffic_manager_task(env):
                     tm.change_light_state(each_intersection, each_neighbor)
                 tm.intersection_states[each_intersection][each_neighbor]["timer"] -= 1
         yield env.timeout(1)
+        
+def log_traffic_data(each_edge):
+    cars_occupied, max_capacity = tm.get_edge_traffic(each_edge)
+    cars_in_edge = tm.get_cars_in_edge(*each_edge)
 
-fps = 60
+    # Average time step
+    edge_wait_avg = np.mean([car.wait_time for car in cars_in_edge]) if cars_in_edge else 0.0
+
+    # Tuple format
+    # (Time step, List of car objects, Edge capacity, edge car wait average)
+    edge_log = (logger.time_step, cars_occupied, max_capacity, edge_wait_avg)
+
+    logger.log(each_edge, edge_log)
+
+def log_task(env):
+    global cars_exited
+    while True:
+        logger.step_time()
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            executor.map(log_traffic_data, tm.edges.keys())
+
+        # Log Overall network waiting time
+        logger.compute_overall_wait_avg()
+        
+        # Log outflow and reset cars_exit count to 0
+        logger.log_outflow(cars_exited)
+        cars_exited = 0
+        yield env.timeout(logger.time_out)
+
+def update_plot():
+    wait_ax.clear()  # Clear the previous plot
+    wait_ax.plot(logger.overall_wait_avg_data, marker='o', color='blue')
+    wait_ax.set_xlabel('Time Step')
+    wait_ax.set_ylabel('Average Wait Time')    
+
+    volume_ax.clear()
+    volume_ax.plot(logger.overall_edge_volume_avg_data, marker='o', color='red')
+    volume_ax.set_xlabel('Time Step')
+    volume_ax.set_ylabel('Average Edge Occupation Percentage')
+
+    car_exit_ax.clear()
+    car_exit_ax.plot(logger.overall_outflow_data, marker='o', color='green')
+    car_exit_ax.set_ylim(bottom=0)
+    car_exit_ax.set_xlabel('Time Step')
+    car_exit_ax.set_ylabel('Outflow')
+    fig_canvas.draw()  # Redraw the canvas
+
+def plot_task(env):
+    while True:
+        yield env.timeout(logger.time_out)
+        update_plot()
 
 def run():
     env = simpy.rt.RealtimeEnvironment(factor=1/60, strict=False)
     env.process(car_spawn_task(env))
     env.process(car_task(env))
     env.process(traffic_manager_task(env))
-    env.run()
+    env.process(log_task(env))
+    env.process(plot_task(env))
+    env.run(until=max_duration)
 
 thread = threading.Thread(target=run)
 thread.start()
