@@ -673,10 +673,15 @@ def log_task(env):
         yield env.timeout(logger.time_out)
 
 def update_plot():
-    ax.clear()  # Clear the previous plot
-    ax.plot(logger.overall_wait_avg_data, marker='o')
-    ax.set_xlabel('Edge Index')
-    ax.set_ylabel('Average Wait Time')
+    wait_ax.clear()  # Clear the previous plot
+    wait_ax.plot(logger.overall_wait_avg_data, marker='o', color='blue')
+    wait_ax.set_xlabel('Time Step')
+    wait_ax.set_ylabel('Average Wait Time')    
+
+    volume_ax.clear()
+    volume_ax.plot(logger.overall_edge_volume_avg_data, marker='o', color='red')
+    volume_ax.set_xlabel('Time Step')
+    volume_ax.set_ylabel('Average Edge Occupation Percentage')
     fig_canvas.draw()  # Redraw the canvas
 
 def plot_task(env):
@@ -685,8 +690,10 @@ def plot_task(env):
         update_plot()
 
 # Create a Matplotlib figure
-fig = Figure(figsize=(5, 4), dpi=100)
-ax = fig.add_subplot(111)
+fig = Figure(figsize=(10, 10), dpi=100)
+wait_ax = fig.add_subplot(221)
+volume_ax = fig.add_subplot(222)
+
 
 # Embed the Matplotlib figure in a Tkinter Canvas
 fig_canvas = FigureCanvasTkAgg(fig, master=graph_canvas)
@@ -695,6 +702,7 @@ canvas_widget.pack()
 
 
 fps = 60
+max_duration=10000
 
 def run():
     env = simpy.rt.RealtimeEnvironment(factor=1/60, strict=False)
@@ -703,7 +711,7 @@ def run():
     env.process(traffic_manager_task(env))
     env.process(log_task(env))
     env.process(plot_task(env))
-    env.run()
+    env.run(until=max_duration)
 
 thread = threading.Thread(target=run)
 thread.start()
