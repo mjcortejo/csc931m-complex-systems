@@ -25,15 +25,32 @@ Now drawing the road network using the graph
 """
 
 env = simpy.Environment()
-#Main canvas
-root = tk.Tk()
-child = tk.Toplevel()
+
+root = tk.Tk() # Main canvas
+child = tk.Toplevel() # Graph canvas
 
 canvas = tk.Canvas(root, width=800, height=600)
 graph_canvas = tk.Canvas(child, width=800, height=600)
 
 graph_canvas.pack()
 canvas.pack()
+
+# Create a Matplotlib figure
+fig = Figure(figsize=(10, 10), dpi=100)
+wait_ax = fig.add_subplot(221)
+volume_ax = fig.add_subplot(222)
+
+# Embed the Matplotlib figure in a Tkinter Canvas
+fig_canvas = FigureCanvasTkAgg(fig, master=graph_canvas)
+canvas_widget = fig_canvas.get_tk_widget()
+canvas_widget.pack()
+
+fps = 60
+max_duration=50000
+
+logger = Logger()
+number_of_cars = 2000
+cars = [] #used to store car objects generated using the Car class
 
 color_list = [
     "snow",
@@ -118,6 +135,9 @@ class Car:
         self.cars_in_front = None # collection of other car objects
     
     def place_car(self, x, y):
+        """
+        Draw cars in the grid, using their origin position
+        """
         x0 = x - self.car_radius
         y0 = y - self.car_radius
         x1 = x + self.car_radius
@@ -545,17 +565,7 @@ tm = TrafficManager(intersection_nodes, edge_list,
                     parking_capacities=parking_capacities,
                     # disallowed_sequences=disallowed_sequences, 
                     default_edge_capacity=10)
-
-"""
-Draw cars in the grid, and assign their origin and destination
-"""
-number_of_cars = 500
-cars = []
-
-#create a text canvas widget
-canvas_index = 0
-logs = {}
-
+logger.setup_edge_logs(tm.edges)
 
 for index in range(number_of_cars):
     car = Car(index)
@@ -565,11 +575,9 @@ spawn_delay = 5
 y_offset = 50
 
 def car_spawn_task(env):
-    global canvas_index
     while True:
         for each_car in cars:
             if not each_car.is_spawned:
-                canvas_index += 1
                 entry_choice = list(random.choice(list(tm.entry_edges)))
                 origin = entry_choice[0]
                 immediate_destination = entry_choice[1]
@@ -590,10 +598,6 @@ def car_spawn_task(env):
                 else:
                     logging.info(f"{(origin, immediate_destination)} cannot spawn due to full")
 
-                #generate text widget
-                # text_log = child_canvas.create_text(0, y_offset * canvas_index + 10, anchor='nw', text="START")
-                # logs[each_car.index] = text_log
-
             yield env.timeout(spawn_delay)
          
 car_task_delay = 1
@@ -602,28 +606,23 @@ def car_movement_logic(each_car):
         each_car.travel()
     elif each_car.is_parked:
         if each_car.holding_time <= 0:
-            # First we remove the car from the parking lot
             next_destination_node = tm.parking_nodes[each_car.origin_node]["exit_node"] #set the parking's exit node as the next immediate destination
             cars_occupied, edge_capacity = tm.get_edge_traffic((each_car.origin_node, next_destination_node))
 
             if cars_occupied <= edge_capacity:
+                # First we remove the car from the parking lot
                 tm.manage_parking(each_car, each_car.origin_node, "remove")
                 each_car.change_car_state("normal")
 
-                # set Origins and Destinations
+                # Set Origins and Destinations
                 entry_nodes = list(tm.entry_nodes)
                 final_destination = random.choice(entry_nodes)
                 each_car.set_destination(final_destination)
 
-                # next_destination_node = tm.parking_nodes[each_car.origin_node]["exit_node"] #set the parking's exit node as the next immediate destination
-
                 # Then add to edge capacity
                 tm.manage_car_from_edge(each_car, each_car.origin_node, next_destination_node, how="add")
                 each_car.compute_shortest_path()
-                each_car.is_parked = False
-
-            # We should check edge capacity first before releasing the is_parking boolean to False
-            # print(f"Car {each_car.index} is leaving from {each_car.origin_node} heading to {each_car.final_destination_node}")
+                each_car.is_parked = False # Release flag
             
         each_car.holding_time -= 1
 
@@ -646,10 +645,7 @@ def traffic_manager_task(env):
                     tm.change_light_state(each_intersection, each_neighbor)
                 tm.intersection_states[each_intersection][each_neighbor]["timer"] -= 1
         yield env.timeout(1)
-
-logger = Logger()
-logger.setup_edge_logs(tm.edges)
-
+        
 def log_traffic_data(each_edge):
     cars_occupied, max_capacity = tm.get_edge_traffic(each_edge)
     cars_in_edge = tm.get_cars_in_edge(*each_edge)
@@ -686,23 +682,8 @@ def update_plot():
 
 def plot_task(env):
     while True:
-        yield env.timeout(200)
+        yield env.timeout(logger.time_out)
         update_plot()
-
-# Create a Matplotlib figure
-fig = Figure(figsize=(10, 10), dpi=100)
-wait_ax = fig.add_subplot(221)
-volume_ax = fig.add_subplot(222)
-
-
-# Embed the Matplotlib figure in a Tkinter Canvas
-fig_canvas = FigureCanvasTkAgg(fig, master=graph_canvas)
-canvas_widget = fig_canvas.get_tk_widget()
-canvas_widget.pack()
-
-
-fps = 60
-max_duration=10000
 
 def run():
     env = simpy.rt.RealtimeEnvironment(factor=1/60, strict=False)
