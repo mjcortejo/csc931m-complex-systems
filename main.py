@@ -14,15 +14,14 @@ NavigationToolbar2Tk)
 
 from layouts import *
 from logger import Logger
+from utils import ColorCollection
 
 from concurrent.futures import ThreadPoolExecutor
 
-random.seed(27)
-np.random.seed(27)
+random_seed = 27
 
-"""
-Now drawing the road network using the graph
-"""
+random.seed(random_seed)
+np.random.seed(random_seed)
 
 env = simpy.Environment()
 
@@ -41,8 +40,6 @@ canvas.pack()
 
 # The three numbers are subplot grid parameters encoded as a single integer. For example, "111" means "1x1 grid, first subplot" and "234" means "2x3 grid, 4th subplot".
 fig = Figure(figsize=(20, 10), dpi=100)
-# wait_ax = fig.add_subplot(221)
-# volume_ax = fig.add_subplot(222)
 wait_ax = fig.add_subplot(311)
 volume_ax = fig.add_subplot(312)
 car_exit_ax = fig.add_subplot(313)
@@ -59,40 +56,7 @@ logger = Logger()
 number_of_cars = 800
 cars = [] #used to store car objects generated using the Car class
 
-color_list = [
-    "snow",
-    "ghost white",
-    "gainsboro",
-    "old lace",
-    "linen",
-    "antique white",
-    "papaya whip",
-    "blanched almond",
-    "bisque",
-    "peach puff",
-    "navajo white",
-    "lemon chiffon",
-    "mint cream",
-    "azure",
-    "alice blue",
-    "lavender",
-    "lavender blush",
-    "misty rose",
-    "turquoise", 
-    "aquamarine", 
-    "powder blue", 
-    "sky blue", 
-    "steel blue", 
-    "cadet blue", 
-    "deep sky blue", 
-    "dodger blue", 
-    "cornflower blue", 
-    "medium aquamarine", 
-    "medium turquoise", 
-    "light sea green", 
-    "medium sea green"
-]
-
+color_collection = ColorCollection(random_seed=random_seed)
 
 """
 Car Class
@@ -119,18 +83,19 @@ class Car:
         self.speed = 1 # put range of numbers for variability
         self.car_canvas = None # Car canvas object itself
         self.car_radius = 3 # Car canvas radius size
+        # self.car_color = random.choice(color_list)
+        self.car_color = color_collection.get_random_color()
+
         self.wait_time = 0
         ### Attributes kwargs
-        # mean_value = (self.DEFAULT_MIN_HOLDING_TIME / self.DEFAULT_MAX_HOLDING_TIME) / 2
-        mean_value = 600
-        std_dev = 100
+        mean_value = kwargs['mean_value'] if 'mean_value' in kwargs.keys() else (self.DEFAULT_MIN_HOLDING_TIME / self.DEFAULT_MAX_HOLDING_TIME) / 2
+        std_dev = kwargs['std_dev'] if 'std_dev' in kwargs.keys() else 100
         self.holding_time = int(np.clip(np.random.normal(loc=mean_value, scale=std_dev), self.DEFAULT_MIN_HOLDING_TIME, self.DEFAULT_MAX_HOLDING_TIME))
 
         #### Removed highly aggregated min clipped values
-        self.holding_time = np.delete(self.holding_time, np.argwhere( (self.holding_time == self.DEFAULT_MIN_HOLDING_TIME)))
-        self.holding_time = np.delete(self.holding_time, np.argwhere( (self.holding_time == self.DEFAULT_MAX_HOLDING_TIME)))
+        self.holding_time = np.delete(self.holding_time, np.argwhere( (self.holding_time == self.DEFAULT_MIN_HOLDING_TIME))) # Removing values with exactly as minimum holding time
+        self.holding_time = np.delete(self.holding_time, np.argwhere( (self.holding_time == self.DEFAULT_MAX_HOLDING_TIME))) # Removing values with exactly as maximum holding time
 
-        # self.holding_time = 2
         # States
         self.arrived = False
         self.is_spawned = False
@@ -153,8 +118,7 @@ class Car:
         self.pos_x = x
         self.pos_y = y
 
-        choice_color = random.choice(color_list)
-        self.car_canvas = canvas.create_oval(x0, y0, x1, y1, fill=choice_color)
+        self.car_canvas = canvas.create_oval(x0, y0, x1, y1, fill=self.car_color)
         # self.car.bind("<Enter>", self.__on_hover)
 
     def get_coords(self, xy_only=True):
@@ -163,9 +127,6 @@ class Car:
             return x0, y0
         else:
             return x0 + self.car_radius, y0 + self.car_radius, x1 - self.car_radius, y1 - self.car_radius
-        
-    # def __on_hover(self, event):
-    #     print(f'You hovered car at Car {self.index} {event.x} X {event.y}.')
     
     def _move_to(self, x, y):
         x0 = x - self.car_radius
@@ -192,7 +153,6 @@ class Car:
         """
         Compute the car agent's shortest path using NetworkX's shortest_path function (default: Djikstra)
         """
-        # print(self.origin_node, self.final_destination_node)        
         paths = nx.dijkstra_path(tm.G, self.origin_node, self.final_destination_node, weight='weight')
         self.next_edge = None
         if tm.disallowed_sequences is not None:
@@ -237,7 +197,6 @@ class Car:
         def __move():
             """
              Move the agent to the next position based on the speed and distance.
-            #WARN: Starting to get performance issues
             """
 
             # Get the cars that are in the same edge as the current car. but also remove self in that list to prevent measuring its own position
@@ -332,9 +291,6 @@ class Car:
     def remove_car(self):
         canvas.delete(self.car_canvas)
 
-"""
-Create network graph representation
-"""
 class TrafficManager():
     def __init__(self, intersection_nodes, edge_list, **kwargs):
         """
