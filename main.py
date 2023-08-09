@@ -35,10 +35,17 @@ graph_canvas = tk.Canvas(child, width=800, height=600)
 graph_canvas.pack()
 canvas.pack()
 
+# https://stackoverflow.com/questions/3584805/what-does-the-argument-mean-in-fig-add-subplot111
+
 # Create a Matplotlib figure
-fig = Figure(figsize=(10, 10), dpi=100)
-wait_ax = fig.add_subplot(221)
-volume_ax = fig.add_subplot(222)
+
+# The three numbers are subplot grid parameters encoded as a single integer. For example, "111" means "1x1 grid, first subplot" and "234" means "2x3 grid, 4th subplot".
+fig = Figure(figsize=(20, 10), dpi=100)
+# wait_ax = fig.add_subplot(221)
+# volume_ax = fig.add_subplot(222)
+wait_ax = fig.add_subplot(311)
+volume_ax = fig.add_subplot(312)
+car_exit_ax = fig.add_subplot(313)
 
 # Embed the Matplotlib figure in a Tkinter Canvas
 fig_canvas = FigureCanvasTkAgg(fig, master=graph_canvas)
@@ -49,7 +56,7 @@ fps = 60
 max_duration=50000
 
 logger = Logger()
-number_of_cars = 2000
+number_of_cars = 800
 cars = [] #used to store car objects generated using the Car class
 
 color_list = [
@@ -412,7 +419,7 @@ class TrafficManager():
 
     def __build_network__(self):
         """
-         Builds the network
+         Builds the network using the edges provided
         """
 
         # self.edges = {i: {'cars_occupied': [], 'weight': 0} for i in self.edge_list}
@@ -471,9 +478,6 @@ class TrafficManager():
                         "timer": self.CONST_DEFAULT_INTERSECTION_TIME
                     }
 
-                    # color_state = "red"
-                    # print(f"Setting {(n, neighbor)} to {color_state}")
-
         # Draw the intersection of all nodes in the intersection_nodes.
         for index, pos in self.intersection_nodes.items():
             self.__draw_intersection__(*pos, index=index)
@@ -489,10 +493,8 @@ class TrafficManager():
         if orientation:
             if how == "add":
                 self.edges[orientation]['cars_occupied'].append(car_object)
-                # print(f"Added {car_object.index} to {orientation}")
             elif how == "remove":
                 self.edges[orientation]['cars_occupied'].remove(car_object)
-                # print(f"Removing {car_object.index} to {orientation}")
             else: raise Exception("Invalid 'how' value, must be 'add' or 'remove'")
 
             # Dynamic Weighting mechanism
@@ -572,7 +574,6 @@ for index in range(number_of_cars):
     cars.append(car)
 
 spawn_delay = 5
-y_offset = 50
 
 def car_spawn_task(env):
     while True:
@@ -626,13 +627,17 @@ def car_movement_logic(each_car):
             
         each_car.holding_time -= 1
 
+cars_exited = 0
+
 def car_task(env):
+    global cars_exited
     while True:
         with ThreadPoolExecutor(max_workers=64) as executor:
             # Execute the car_movement_logic for each car concurrently in multiple threads
             executor.map(car_movement_logic, cars)
 
         # Remove completed cars
+        cars_exited += len([each_car for each_car in cars if each_car.arrived])
         cars[:] = [each_car for each_car in cars if not each_car.arrived]
 
         yield env.timeout(car_task_delay)
@@ -660,12 +665,18 @@ def log_traffic_data(each_edge):
     logger.log(each_edge, edge_log)
 
 def log_task(env):
+    global cars_exited
     while True:
         logger.step_time()
         with ThreadPoolExecutor(max_workers=8) as executor:
             executor.map(log_traffic_data, tm.edges.keys())
 
+        # Log Overall network waiting time
         logger.compute_overall_wait_avg()
+        
+        # Log outflow and reset cars_exit count to 0
+        logger.log_outflow(cars_exited)
+        cars_exited = 0
         yield env.timeout(logger.time_out)
 
 def update_plot():
@@ -678,6 +689,12 @@ def update_plot():
     volume_ax.plot(logger.overall_edge_volume_avg_data, marker='o', color='red')
     volume_ax.set_xlabel('Time Step')
     volume_ax.set_ylabel('Average Edge Occupation Percentage')
+
+    car_exit_ax.clear()
+    car_exit_ax.plot(logger.overall_outflow_data, marker='o', color='green')
+    car_exit_ax.set_ylim(bottom=0)
+    car_exit_ax.set_xlabel('Time Step')
+    car_exit_ax.set_ylabel('Outflow')
     fig_canvas.draw()  # Redraw the canvas
 
 def plot_task(env):
