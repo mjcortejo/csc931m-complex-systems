@@ -184,7 +184,7 @@ class Car:
         if post_next_destination_node:
             self.next_edge = (self.next_destination_node, post_next_destination_node)
     
-    def spawn(self, origin, final_destination, with_stops:list[int] = None):
+    def spawn(self, origin, final_destination):
         """Spawn car at the origin node (usually an entry node).
         Args:
             origin (int): _description_
@@ -240,8 +240,6 @@ class Car:
         if not self.is_moving:
             self.wait_time += 1 #registers at ticks which we'll have to convert to seconds
 
-        is_next_destination_available = None
-
         if "P" in str(self.next_destination_node): # If car is heading to a parking node
             cars_occupied, edge_capacity = tm.manage_parking(self, self.next_destination_node, how="inquire") # Check if parking is available
         else:
@@ -275,8 +273,7 @@ class Car:
                 tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="add")
 
             except StopIteration as e:
-                if self.origin_node == 13:
-                    print(f"StopIteration {self.origin_node}, {e}")
+                # print(f"StopIteration {self.origin_node}, {e}")
                 self.wait_time = 0;
                 if "P" in self.origin_node:
                     self.is_parked = True
@@ -603,7 +600,6 @@ def car_movement_logic(each_car):
         if each_car.holding_time <= 0:
             entry_nodes = list(tm.entry_nodes)
             final_destination = random.choice(entry_nodes)
-
 
             if each_car.is_parked:
                 next_destination_node = tm.parking_nodes[each_car.origin_node]["exit_node"] #set the parking's exit node as the next immediate destination
