@@ -39,7 +39,7 @@ canvas.pack()
 # Create a Matplotlib figure
 
 # The three numbers are subplot grid parameters encoded as a single integer. For example, "111" means "1x1 grid, first subplot" and "234" means "2x3 grid, 4th subplot".
-fig = Figure(figsize=(20, 10), dpi=100)
+fig = Figure(figsize=(10, 10), dpi=100)
 wait_ax = fig.add_subplot(311)
 volume_ax = fig.add_subplot(312)
 car_exit_ax = fig.add_subplot(313)
@@ -71,6 +71,10 @@ class Car:
         # Constants
         self.DEFAULT_MIN_HOLDING_TIME = 500
         self.DEFAULT_MAX_HOLDING_TIME = 1000
+
+        self.DEFAULT_MIN_DROPOFF_TIME = 50
+        self.DEFAULT_MAX_DROPOFF_TIME = 100
+        self.CONST_TRAVEL_INTENTS = ["park", "dropoff", "passthru"]
         # Node position and destination information.
         self.origin_node = None #current origin
         self.last_origin_node = None # last recorded origin
@@ -83,24 +87,37 @@ class Car:
         self.speed = 1 # put range of numbers for variability
         self.car_canvas = None # Car canvas object itself
         self.car_radius = 3 # Car canvas radius size
-        # self.car_color = random.choice(color_list)
         self.car_color = color_collection.get_random_color()
 
         self.wait_time = 0
-        ### Attributes kwargs
-        mean_value = kwargs['mean_value'] if 'mean_value' in kwargs.keys() else (self.DEFAULT_MIN_HOLDING_TIME / self.DEFAULT_MAX_HOLDING_TIME) / 2
-        std_dev = kwargs['std_dev'] if 'std_dev' in kwargs.keys() else 100
-        self.holding_time = int(np.clip(np.random.normal(loc=mean_value, scale=std_dev), self.DEFAULT_MIN_HOLDING_TIME, self.DEFAULT_MAX_HOLDING_TIME))
 
-        #### Removed highly aggregated min clipped values
-        self.holding_time = np.delete(self.holding_time, np.argwhere( (self.holding_time == self.DEFAULT_MIN_HOLDING_TIME))) # Removing values with exactly as minimum holding time
-        self.holding_time = np.delete(self.holding_time, np.argwhere( (self.holding_time == self.DEFAULT_MAX_HOLDING_TIME))) # Removing values with exactly as maximum holding time
+        ### Attributes kwargs
+        self.travel_intent = kwargs['travel_intent'] if 'travel_intent' in kwargs.keys() else "park"
+        if self.travel_intent not in self.CONST_TRAVEL_INTENTS : raise Exception(f"Invalid travel intent must be one of {self.CONST_TRAVEL_INTENTS}")
+
+        mean_value = 0
+        std_dev = 100
+
+        match self.travel_intent:
+            case "dropoff":
+                self.holding_time = random.randint(50, 100)
+
+            case _: #default
+                # mean_value = kwargs['mean_value'] if 'mean_value' in kwargs.keys() else (self.DEFAULT_MIN_HOLDING_TIME / self.DEFAULT_MAX_HOLDING_TIME) / 2
+                mean_value = (self.DEFAULT_MIN_HOLDING_TIME / self.DEFAULT_MAX_HOLDING_TIME) / 2
+                # std_dev = kwargs['std_dev'] if 'std_dev' in kwargs.keys() else 100
+                self.holding_time = int(np.clip(np.random.normal(loc=mean_value, scale=std_dev), self.DEFAULT_MIN_HOLDING_TIME, self.DEFAULT_MAX_HOLDING_TIME))
+
+                #### Removed highly aggregated min clipped values
+                self.holding_time = np.delete(self.holding_time, np.argwhere( (self.holding_time == self.DEFAULT_MIN_HOLDING_TIME))) # Removing values with exactly as minimum holding time
+                self.holding_time = np.delete(self.holding_time, np.argwhere( (self.holding_time == self.DEFAULT_MAX_HOLDING_TIME))) # Removing values with exactly as maximum holding time
 
         # States
         self.arrived = False
         self.is_spawned = False
         self.is_moving = False
         self.is_parked = False
+        self.is_dropping_off = None #We need three states, None, True and False. False flag is used to release car from holding
         # Awareness Attributes
         self.light_observation_distance = 5
         self.car_collision_observe_distance = 8
@@ -168,17 +185,16 @@ class Car:
         if post_next_destination_node:
             self.next_edge = (self.next_destination_node, post_next_destination_node)
     
-    def spawn(self, origin, final_destination):
+    def spawn(self, origin, final_destination, with_stops:list[int] = None):
+        """Spawn car at the origin node (usually an entry node).
+        Args:
+            origin (int): _description_
+            final_destination (int): _description_
+            with_stops (list[int], optional): _description_. Defaults to None.
         """
-         Spawn car at the origin node (usually an entry node).
-         
-         @param origin - origin of car to spawn
-         @param final_destination - final destination of car to spawn
-        """
-        p1 = tm.intersection_nodes[origin]
-
+        origin_pos = tm.intersection_nodes[origin]
         self.set_origin(origin) #p1 is x and y respectively
-        self.place_car(p1[0], p1[1])
+        self.place_car(origin_pos[0], origin_pos[1])
         self.set_destination(final_destination) #p2 is x and y respectively
         self.compute_shortest_path()
         tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="add")
@@ -225,16 +241,30 @@ class Car:
         if not self.is_moving:
             self.wait_time += 1 #registers at ticks which we'll have to convert to seconds
 
+        is_next_destination_available = None
+
+        if "P" in str(self.next_destination_node): # If car is heading to a parking node
+            cars_occupied, edge_capacity = tm.manage_parking(self, self.next_destination_node, how="inquire") # Check if parking is available
+        elif self.travel_intent == "dropoff":
+            midpoint_x = math.floor((tm.intersection_nodes[self.origin_node][0] + tm.intersection_nodes[self.next_destination_node][0]) / 2)
+            midpoint_y = math.floor((tm.intersection_nodes[self.origin_node][1] + tm.intersection_nodes[self.next_destination_node][1]) / 2)
+
+            if (math.floor(self.pos_x) == midpoint_x and math.floor(self.pos_y) == midpoint_y) and self.is_dropping_off is None:
+                self.is_dropping_off = True
+                is_next_destination_available = False
+                print(f"{self.index} is dropping off with holding time {self.holding_time}")
+            elif self.is_dropping_off == False:
+                print(f"{self.index} is done")
+                is_next_destination_available = True
+            
+        else:
+            cars_occupied, edge_capacity = tm.get_edge_traffic(self.next_edge)
+
         # This method is called when the distance is below the light observation distance threshold.
-        if distance > self.light_observation_distance:
+        if distance > self.light_observation_distance and is_next_destination_available is None or is_next_destination_available == True:
             __move()
 
         elif distance > 0:
-            if "P" in str(self.next_destination_node): # If car is heading to a parking node
-                cars_occupied, edge_capacity = tm.manage_parking(self, self.next_destination_node, how="inquire") # Check if parking is available
-            else:
-                cars_occupied, edge_capacity = tm.get_edge_traffic(self.next_edge)
-            
             is_next_destination_available = True if cars_occupied < edge_capacity else False
 
             if tm.destination_has_intersection(self.next_destination_node):
@@ -246,6 +276,7 @@ class Car:
             try:
                 if "P" in str(self.next_destination_node): #If the car is heading to a parking node
                     tm.manage_parking(self, self.next_destination_node, how="add") # then add itself to the parking node
+
                 tm.manage_car_from_edge(self, self.origin_node, self.next_destination_node, how="remove")
                 
                 self.last_origin_node = self.origin_node
@@ -323,6 +354,7 @@ class TrafficManager():
         #end kwargs
         self.entry_nodes = []
         self.parking_nodes = {} #dictionary because we need to contain occupied cars and capacity
+        self.regular_nodes = []
 
         self.entry_edges = []
 
@@ -394,6 +426,8 @@ class TrafficManager():
                     "cars_occupied": [],
                     "max_capacity": self.parking_capacities[index]
                 }
+            else: #We'll count C nodes for now
+                self.regular_nodes.append(index)
             self.G.add_node(index, pos=pos)
 
         # Add edges to the graph.
@@ -525,41 +559,42 @@ tm = TrafficManager(intersection_nodes, edge_list,
                     default_edge_capacity=10)
 logger.setup_edge_logs(tm.edges)
 
-for index in range(number_of_cars):
-    car = Car(index)
-    cars.append(car)
-
-spawn_delay = 5
-
 travel_intent = [
-    "parking", # Initiates E Entry Point to P Parking Point
+    "park", # Initiates E Entry Point to P Parking Point
     "dropoff", # Initiates E to random node, but stops between the middle of the origin and destination as it approaches its final destination
     "passthru" # Initiates E to another E
 ]
+
+for index in range(number_of_cars):
+    selected_intent = np.random.choice(travel_intent, 1, p=[0.50, 0.25, 0.25])
+
+    car = Car(index, travel_intent=selected_intent)
+    cars.append(car)
+
+spawn_delay = 5
 
 def car_spawn_task(env):
     while True:
         for each_car in cars:
             if not each_car.is_spawned:
-
-                selected_intent = np.random.choice(travel_intent, 1, p=[0.50, 0.25, 0.25])
-                print(selected_intent)
-
                 entry_choice = list(random.choice(list(tm.entry_edges)))
                 origin = entry_choice[0]
                 immediate_destination = entry_choice[1]
-                
-                # entry_nodes = list(tm.entry_nodes)
-                parking_nodes = list(tm.parking_nodes.keys())
+                final_destination = None
 
-                # entry_nodes.remove(origin)
-
-                #final destination can either be entry nodes or parking nodes
-                # final_destination = random.choice(entry_nodes)
-                final_destination = random.choice(parking_nodes)
-
+                match each_car.travel_intent:
+                    case "park":
+                        parking_nodes = list(tm.parking_nodes.keys())
+                        final_destination = random.choice(parking_nodes)
+                    case "passthru": 
+                        exit_nodes = list(tm.entry_nodes)
+                        exit_nodes.remove(origin)
+                        final_destination = random.choice(exit_nodes)
+                    case "dropoff":
+                        regular_nodes = list(tm.regular_nodes)
+                        final_destination = random.choice(regular_nodes)
+                        
                 cars_occupied, edge_capacity = tm.get_edge_traffic((origin, immediate_destination))
-
                 if cars_occupied <= edge_capacity:
                     each_car.spawn(origin, final_destination)
                 else:
@@ -569,28 +604,36 @@ def car_spawn_task(env):
          
 car_task_delay = 1
 def car_movement_logic(each_car):
-    if each_car.is_spawned and not each_car.is_parked:
+    if each_car.is_spawned and not each_car.is_parked and not each_car.is_dropping_off:
         each_car.travel()
-    elif each_car.is_parked:
+    elif each_car.is_parked or each_car.is_dropping_off:
         if each_car.holding_time <= 0:
-            next_destination_node = tm.parking_nodes[each_car.origin_node]["exit_node"] #set the parking's exit node as the next immediate destination
-            cars_occupied, edge_capacity = tm.get_edge_traffic((each_car.origin_node, next_destination_node))
+            if each_car.is_parked:
+                next_destination_node = tm.parking_nodes[each_car.origin_node]["exit_node"] #set the parking's exit node as the next immediate destination
+                cars_occupied, edge_capacity = tm.get_edge_traffic((each_car.origin_node, next_destination_node))
 
-            if cars_occupied <= edge_capacity:
-                # First we remove the car from the parking lot
-                tm.manage_parking(each_car, each_car.origin_node, "remove")
-                each_car.change_car_state("normal")
+                if cars_occupied <= edge_capacity:
+                    # First we remove the car from the parking lot
+                    tm.manage_parking(each_car, each_car.origin_node, "remove")
+                    each_car.change_car_state("normal")
 
-                # Set Origins and Destinations
-                entry_nodes = list(tm.entry_nodes)
-                final_destination = random.choice(entry_nodes)
-                each_car.set_destination(final_destination)
+                    # Set Origins and Destinations
+                    entry_nodes = list(tm.entry_nodes)
+                    final_destination = random.choice(entry_nodes)
+                    each_car.set_destination(final_destination)
 
-                # Then add to edge capacity
-                tm.manage_car_from_edge(each_car, each_car.origin_node, next_destination_node, how="add")
-                each_car.compute_shortest_path()
-                each_car.is_parked = False # Release flag
-            
+                    # Then add to edge capacity
+                    tm.manage_car_from_edge(each_car, each_car.origin_node, next_destination_node, how="add")
+                    each_car.compute_shortest_path()
+                    each_car.is_parked = False # Release flag
+            elif each_car.is_dropping_off:
+                    entry_nodes = list(tm.entry_nodes)
+                    final_destination = random.choice(entry_nodes)
+                    each_car.set_destination(final_destination)
+                    each_car.compute_shortest_path()
+                    each_car.is_dropping_off = False
+                    each_car.travel_intent = None
+        
         each_car.holding_time -= 1
 
 cars_exited = 0
