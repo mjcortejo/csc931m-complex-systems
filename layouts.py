@@ -1,4 +1,5 @@
-def bgc_layout():
+def bgc_layout(**kwargs):
+    capacity = kwargs['capacity'] if 'capacity' in kwargs.keys() else 100
     intersection_nodes = {
         #ENTRY NODES
         'E1': (600, 80), 
@@ -85,7 +86,7 @@ def bgc_layout():
         (10, 9, 10),(10, 11, 10),
         (10, 'D3', 7), ('D3', 'D4', 7), ('D4', 16, 7),
 
-        (11, 4, 7),(11, 10, 10),
+        (11, 4, 7),(11, 10, 10),   
         (12, 5, 7),(12, 11, 10),
         (12, 'D7', 7), ('D7', 'D8', 7), ('D8', 18, 7),
 
@@ -105,50 +106,36 @@ def bgc_layout():
         (23, 18, 7),(23, 22, 10),(23, 24, 10),
         (24, 6, 40),(24, 23, 10)
     ]
-    #REMOVED DUE TO ONE WAY
-    """
-    (1, 8),
-    (2, 9),
-    (7, 1),
-    (7, 8),
-    (8, 9),
-    (8, 14),
-    (9, 10),
-    (10, 3),
-    (11, 12),
-    (11, 17),
-    (13, 7),
-    (14, 8),
-    (14, 13),
-    (14, 19),
-    (15, 14),
-    (16, 10),
-    (16, 15),
-    (17, 16),
-    (17, 22),
-    (18, 17),
-    (19, 13),
-    (21, 16),
-    (22, 17),
-    """
-
-    # disallowed_sequences = {
-    #     ('C1', 9, 2): 2,
-    #     ('C2', 14, 8): 8,
-    #     ('C3', 17, 22): 22,
-    # }
     
     parking_capacities = {
-        "P1": 100,
-        "P2": 100,
-        "P3": 100
+        "P1": capacity,
+        "P2": capacity,
+        "P3": capacity
     }
 
-    # initial_intersection_states = {
+    initial_intersection_states = {
+        (2, 1): "green",
+        (3, 2): "green",
+        (4, 3): "green",
+        (5, 4): "green",
+        (6, 5): "green",
 
-    # }
+        (19, 20): "green",
+        (21, 20): "green",
+        (22, 21): "green",
+        (23, 22): "green",
+        (24, 23): "green",
 
-    return intersection_nodes, edge_list, parking_capacities
+        (2, 'C1'): "red",
+        (4, 11): "red",
+        (5, 12): "red",
+
+        (20, 15): "red",
+        (21, 16): "red",
+        (23, 18): "red",
+    }
+
+    return intersection_nodes, edge_list, parking_capacities, initial_intersection_states
 
 def bgc_short_test():
     intersection_nodes = {

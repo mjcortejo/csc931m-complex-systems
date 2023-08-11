@@ -53,7 +53,16 @@ fps = 60
 max_duration=50000
 
 logger = Logger()
-number_of_cars = 800
+
+#experiment parameters
+number_of_cars = 600
+parking_capacity = 200
+holding_time_mean = 900
+
+print(f"Number of cars {number_of_cars}")
+print(f"Parking Capacity {parking_capacity}")
+print(f"Holding Time Mean Value {holding_time_mean}")
+
 cars = [] #used to store car objects generated using the Car class
 
 color_collection = ColorCollection(random_seed=random_seed)
@@ -103,7 +112,7 @@ class Car:
                 self.holding_time = random.randint(50, 100)
 
             case _: #default
-                # mean_value = kwargs['mean_value'] if 'mean_value' in kwargs.keys() else (self.DEFAULT_MIN_HOLDING_TIME / self.DEFAULT_MAX_HOLDING_TIME) / 2
+                mean_value = kwargs['mean_value'] if 'mean_value' in kwargs.keys() else (self.DEFAULT_MIN_HOLDING_TIME / self.DEFAULT_MAX_HOLDING_TIME) / 2
                 mean_value = (self.DEFAULT_MIN_HOLDING_TIME / self.DEFAULT_MAX_HOLDING_TIME) / 2
                 # std_dev = kwargs['std_dev'] if 'std_dev' in kwargs.keys() else 100
                 self.holding_time = int(np.clip(np.random.normal(loc=mean_value, scale=std_dev), self.DEFAULT_MIN_HOLDING_TIME, self.DEFAULT_MAX_HOLDING_TIME))
@@ -337,6 +346,8 @@ class TrafficManager():
 
         if self.default_edge_capacity is None: print(f"Default Edge Capacity not defined. All undefined edge capacity values will default to {self.CONST_SYSTEM_DEFAULT_EDGE_CAPACITY}. This might emerge wierd behaviors for the entire system."); self.default_edge_capacity = self.CONST_SYSTEM_DEFAULT_EDGE_CAPACITY
 
+        self.manual_intersection_states = kwargs['manual_intersection_states'] if 'manual_intersection_states' in kwargs.keys() else None
+
         #end kwargs
         self.entry_nodes = []
         self.parking_nodes = {} #dictionary because we need to contain occupied cars and capacity
@@ -450,9 +461,12 @@ class TrafficManager():
                 for index, neighbor in enumerate(neighbor_nodes): #needed to enumerate so I can use module to alternate values
                     color_state = "green"
 
-                    # TODO: Change this back to 3 once its fixed
-                    if index % 3 == 0: #alternate light states between nodes
+                    if index % 2 == 0: #alternate light states between nodes
                         color_state = "red"
+
+                    if (n, neighbor) in self.manual_intersection_states.keys():
+                        color_state = self.manual_intersection_states[(n, neighbor)]
+
                     self.intersection_states[n][neighbor] = {
                         "color": color_state,
                         "timer": self.CONST_DEFAULT_INTERSECTION_TIME
@@ -541,10 +555,11 @@ class TrafficManager():
             canvas.create_line(start_x, start_y, end_x, end_y, width=lane_width)
 
 
-intersection_nodes, edge_list, parking_capacities = bgc_layout()
+intersection_nodes, edge_list, parking_capacities, initial_intersection_states = bgc_layout(parking_capacities=parking_capacity)
 # intersection_nodes, edge_list = bgc_short_test()
 tm = TrafficManager(intersection_nodes, edge_list, 
                     parking_capacities=parking_capacities,
+                    manual_intersection_states=initial_intersection_states,
                     # disallowed_sequences=disallowed_sequences,
                     default_edge_capacity=10)
 logger.setup_edge_logs(tm.edges)
@@ -558,7 +573,7 @@ travel_intent = [
 for index in range(number_of_cars):
     selected_intent = np.random.choice(travel_intent, 1, p=[0.50, 0.40, 0.10])
 
-    car = Car(index, travel_intent=selected_intent)
+    car = Car(index, travel_intent=selected_intent, mean_value=holding_time_mean)
     cars.append(car)
 
 spawn_delay = 5
@@ -705,7 +720,8 @@ def plot_task(env):
         update_plot()
 
 def run():
-    env = simpy.rt.RealtimeEnvironment(factor=1/60, strict=False)
+    fps = 30
+    env = simpy.rt.RealtimeEnvironment(factor=1/fps, strict=False)
     env.process(car_spawn_task(env))
     env.process(car_task(env))
     env.process(traffic_manager_task(env))
