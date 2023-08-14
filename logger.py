@@ -9,6 +9,7 @@ class Logger():
         self.overall_edge_volume_avg_data = []
         
         self.overall_outflow_data = []
+        self.car_holding_time_distribution_data = []
 
     def setup_edge_logs(self, edges: object):
         """Accepts list of edges generated from the TrafficManager Class.
@@ -33,6 +34,9 @@ class Logger():
 
     def log_outflow(self, cars_exited):
         self.overall_outflow_data.append(cars_exited)
+
+    def log_holding_time(self, car_holding_time):
+        self.car_holding_time_distribution_data.append(car_holding_time)
 
     def compute_overall_wait_avg(self):
         overall_wait_average = np.mean([data[3] for _,data in self.current_edge_data.items()]) if self.current_edge_data else 0.0

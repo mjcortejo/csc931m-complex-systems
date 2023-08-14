@@ -55,13 +55,23 @@ max_duration=50000
 logger = Logger()
 
 #experiment parameters
-number_of_cars = 600
+number_of_cars = 500
 parking_capacity = 200
-holding_time_mean = 900
+holding_time_mean = 500
+intersection_timer = 500
 
-print(f"Number of cars {number_of_cars}")
-print(f"Parking Capacity {parking_capacity}")
-print(f"Holding Time Mean Value {holding_time_mean}")
+param_dict = {
+    "number_of_cars": 500,
+    "parking_capacity": 200,
+    "holding_time_mean": 500,
+    "intersection_timer": 600
+}
+print(f"Parameter Values")
+print(param_dict)
+
+# print(f"Number of cars {number_of_cars}")
+# print(f"Parking Capacity {parking_capacity}")
+# print(f"Holding Time Mean Value {holding_time_mean}")
 
 cars = [] #used to store car objects generated using the Car class
 
@@ -331,9 +341,11 @@ class TrafficManager():
         self.edges = None
         self.intersection_states = {}
         self.intersection_radius = 4
-        self.CONST_DEFAULT_INTERSECTION_TIME = 300
 
         # kwargs
+        self.CONST_DEFAULT_INTERSECTION_TIME = 300
+        self.intersection_timer = kwargs['intersection_timer'] if 'intersection_timer' in kwargs.keys() else self.CONST_DEFAULT_INTERSECTION_TIME
+
         self.parking_capacities = kwargs['parking_capacities'] if 'parking_capacities' in kwargs.keys() else None
         self.CONST_SYSTEM_DEFAULT_PARKING_CAPACITY = 100
         if self.parking_capacities is None: print("No Parking Capacities found. All parking nodes will default to {self.CONST_SYSTEM_DEFAULT_PARKING_CAPACITY}"); self.parking_capacities = self.CONST_SYSTEM_DEFAULT_PARKING_CAPACITY
@@ -370,7 +382,7 @@ class TrafficManager():
         self.intersection_states[intersection_node][neighboring_node]["color"] = color_state
 
         #set timer
-        self.intersection_states[intersection_node][neighboring_node]["timer"] = self.CONST_DEFAULT_INTERSECTION_TIME if timer is None else timer
+        self.intersection_states[intersection_node][neighboring_node]["timer"] = self.intersection_timer if timer is None else timer
 
     def get_intersection_light_state(self, intersection_node, neighboring_node):
         """
@@ -458,10 +470,13 @@ class TrafficManager():
                 neighbor_nodes = list(self.G.predecessors(n)) #must use G.predecessors instead of neighbors
                 self.intersection_states[n] = {}
                 # This function is used to generate a dictionary of light states between nodes and neighbors
+                
+                first_neighbor = True #assign only one green then the rest of neighbors to red
                 for index, neighbor in enumerate(neighbor_nodes): #needed to enumerate so I can use module to alternate values
-                    color_state = "green"
-
-                    if index % 2 == 0: #alternate light states between nodes
+                    if first_neighbor:
+                        color_state = "green"
+                        first_neighbor = False
+                    else:
                         color_state = "red"
 
                     if (n, neighbor) in self.manual_intersection_states.keys():
@@ -555,11 +570,12 @@ class TrafficManager():
             canvas.create_line(start_x, start_y, end_x, end_y, width=lane_width)
 
 
-intersection_nodes, edge_list, parking_capacities, initial_intersection_states = bgc_layout(parking_capacities=parking_capacity)
+intersection_nodes, edge_list, parking_capacities, initial_intersection_states = bgc_layout(parking_capacities=param_dict["parking_capacity"])
 # intersection_nodes, edge_list = bgc_short_test()
 tm = TrafficManager(intersection_nodes, edge_list, 
                     parking_capacities=parking_capacities,
                     manual_intersection_states=initial_intersection_states,
+                    intersection_timer=param_dict["intersection_timer"],
                     # disallowed_sequences=disallowed_sequences,
                     default_edge_capacity=10)
 logger.setup_edge_logs(tm.edges)
@@ -570,10 +586,11 @@ travel_intent = [
     "passthru" # Initiates E to another E
 ]
 
-for index in range(number_of_cars):
+for index in range(param_dict["number_of_cars"]):
     selected_intent = np.random.choice(travel_intent, 1, p=[0.50, 0.40, 0.10])
 
-    car = Car(index, travel_intent=selected_intent, mean_value=holding_time_mean)
+    car = Car(index, travel_intent=selected_intent, mean_value=param_dict["holding_time_mean"])
+    logger.log_holding_time(car.holding_time)
     cars.append(car)
 
 spawn_delay = 5
